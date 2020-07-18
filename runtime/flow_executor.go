@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/faasflow/faas-flow-service/eventhandler"
+	hlog "github.com/faasflow/faas-flow-service/log"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
-	"handler/eventhandler"
-	hlog "handler/log"
 )
 
 // A signature of SHA265 equivalent of github.com/s8sg/faas-flow

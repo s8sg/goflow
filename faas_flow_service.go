@@ -1,7 +1,7 @@
 package faasflow
 
 import (
-	"handler/runtime"
+	"github.com/faasflow/faas-flow-service/runtime"
 	"log"
 	"sync"
 	"time"
@@ -52,7 +52,7 @@ func (fs *FlowService) ConfigureDefault() {
 
 func (fs *FlowService) queueWorker(wg *sync.WaitGroup) {
 	defer wg.Done()
-	log.Print(fs.runtime.StartQueueWorker("redis://" + fs.RedisURL + "/", fs.WorkerConcurrency).Error())
+	log.Print(fs.runtime.StartQueueWorker("redis://"+fs.RedisURL+"/", fs.WorkerConcurrency).Error())
 }
 
 func (fs *FlowService) server() {

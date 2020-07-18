@@ -8,7 +8,7 @@ import (
 	"github.com/faasflow/runtime/controller/handler"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
-	"handler/eventhandler"
+	"github.com/faasflow/faas-flow-service/eventhandler"
 	"log"
 	"net/http"
 	"time"
