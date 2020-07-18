@@ -1,8 +1,8 @@
-package faasflow
+package goflow
 
 import (
 	"fmt"
-	"github.com/faasflow/faas-flow-service/runtime"
+	"github.com/faasflow/goflow/runtime"
 	"time"
 )
 
@@ -24,7 +24,7 @@ func (fs *FlowService) Start(handler runtime.FlowDefinitionHandler) error {
 	defer close(errorChan)
 	go fs.queueWorker(errorChan)
 	go fs.server(errorChan)
-	err := <- errorChan
+	err := <-errorChan
 	return err
 }
 

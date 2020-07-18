@@ -14,8 +14,8 @@ github.com/faasflow/faas-flow-redis-datastore v1.0.1-0.20200718081732-431d3cc789
 github.com/faasflow/faas-flow-redis-datastore v1.0.1-0.20200718081732-431d3cc7894a/go.mod h1:vV/vLuH5WGs4T040uqIbhdbQmdImGY7iYVBkqKGeUrc=
 github.com/faasflow/faas-flow-redis-statestore v1.0.1-0.20200718082116-d90985fdbde1 h1:k10t8Eq5jley1oVlMK1suXq0mmF9IaqYJm0VnrAHQYQ=
 github.com/faasflow/faas-flow-redis-statestore v1.0.1-0.20200718082116-d90985fdbde1/go.mod h1:F2ZiHritsST6NSjqrQVgoU75rWtoimLV7qKXkCmNVgM=
-github.com/faasflow/lib v1.1.0 h1:hnkqrFnCgCeMDJT/J9FLJWKNP/JeCsyulhT4pl8J1dM=
-github.com/faasflow/lib v1.1.0/go.mod h1:8WerNZmVn5ad2Idf6hufkILrB/xXOJOnraIfykz+2Qc=
+github.com/faasflow/lib v1.1.1-0.20200718152038-a5cb46dd9e65 h1:jVdg6lEezJEnyphhxAbbW/UtJ1XY0TcYUzmY42WLojU=
+github.com/faasflow/lib v1.1.1-0.20200718152038-a5cb46dd9e65/go.mod h1:8WerNZmVn5ad2Idf6hufkILrB/xXOJOnraIfykz+2Qc=
 github.com/faasflow/runtime v0.2.2 h1:XaKJU9X9DuLuVZhc5Von7R98aw1GgtYjfQNvWQWHma0=
 github.com/faasflow/runtime v0.2.2/go.mod h1:fd+6ZuXgYquHpKeaWSwbTWUrJuirfqIrt/Lrm3Rr/kY=
 github.com/faasflow/sdk v0.0.0-20200705012738-72f2bcdb62d1/go.mod h1:cpcCvb40uzDNzTT0qxiA6QGuOu8a71LMV2w/ikAW5LU=

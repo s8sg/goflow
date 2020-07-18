@@ -1,4 +1,4 @@
-name: Faas-Flow-Service-Build
+name: GO-Flow-Build
 
 on: [push]
 

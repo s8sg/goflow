@@ -1,18 +1,14 @@
-# faas-flow-service
-FaaSFlow service is a go-based workflow engine
+# Go-Flow
+A Golang based workflow framework
 
-![Build](https://github.com/faasflow/faas-flow-service/workflows/Faas-Flow-Service-Build/badge.svg)
+![Build](https://github.com/faasflow/faas-flow-service/workflows/GO-Flow-Build/badge.svg)
 [![GoDoc](https://godoc.org/github.com/faasflow/faas-flow-service?status.svg)](https://godoc.org/github.com/faasflow/faas-flow-service)
 
-[Workflow library](https://godoc.org/github.com/faasflow/lib/service) provides the functions to build flow
-
-
 ## Install It 
-Install FaasFlow Service
+Install GoFlow
 ```sh
 go mod init test
-go get github.com/faasflow/faas-flow-service
-go get github.com/faasflow/lib/service
+go get github.com/faasflow/goflow
 ```
 
 ## Write First Flow
@@ -22,8 +18,8 @@ package main
 
 import (
 	"fmt"
-	flow "github.com/faasflow/lib/service"
-	service "github.com/faasflow/faas-flow-service"
+	"github.com/faasflow/goflow"
+	flow "github.com/faasflow/lib/goflow"
 )
 
 // Workload function
@@ -38,7 +34,7 @@ func DefineWorkflow(flow *flow.Workflow, context *flow.Context) error {
 }
 
 func main() {
-	fs := &service.FlowService{
+	fs := &goflow.FlowService{
 		Port:                8080,
 		RedisURL:            "localhost:6379",
 		OpenTraceUrl:        "localhost:5775",
@@ -54,10 +50,10 @@ go build -o worker
 ./worker
 ```
 
-## Invoke IT
+## Invoke It
 ```sh
 curl -d HelloWorld localhost:8080
 ```
 
-## Scale it
-Faasflow service scale horizontally, you can distribute the load by just adding more instances 
+## Scale It
+GoFlow scale horizontally, you can distribute the load by just adding more instances 

@@ -1,4 +1,4 @@
-module github.com/faasflow/faas-flow-service
+module github.com/faasflow/goflow
 
 go 1.13
 
@@ -8,7 +8,7 @@ require (
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/faasflow/faas-flow-redis-datastore v1.0.1-0.20200718081732-431d3cc7894a
 	github.com/faasflow/faas-flow-redis-statestore v1.0.1-0.20200718082116-d90985fdbde1
-	github.com/faasflow/lib v1.1.0
+	github.com/faasflow/lib v1.1.1-0.20200718152038-a5cb46dd9e65
 	github.com/faasflow/runtime v0.2.2
 	github.com/faasflow/sdk v1.0.0
 	github.com/garyburd/redigo v1.6.0 // indirect
