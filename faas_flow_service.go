@@ -1,9 +1,8 @@
 package faasflow
 
 import (
+	"fmt"
 	"github.com/faasflow/faas-flow-service/runtime"
-	"log"
-	"sync"
 	"time"
 )
 
@@ -21,12 +20,26 @@ type FlowService struct {
 func (fs *FlowService) Start(handler runtime.FlowDefinitionHandler) error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{Handler: handler, OpenTracingUrl: fs.OpenTraceUrl, RedisURL: fs.RedisURL}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go fs.queueWorker(&wg)
-	fs.server()
-	wg.Wait()
-	return nil
+	errorChan := make(chan error)
+	defer close(errorChan)
+	go fs.queueWorker(errorChan)
+	go fs.server(errorChan)
+	err := <- errorChan
+	return err
+}
+
+func (fs *FlowService) StartServer(handler runtime.FlowDefinitionHandler) error {
+	fs.ConfigureDefault()
+	fs.runtime = &runtime.FlowRuntime{Handler: handler, OpenTracingUrl: fs.OpenTraceUrl, RedisURL: fs.RedisURL}
+	err := fs.runtime.StartServer(fs.Port, fs.RequestReadTimeout, fs.RequestWriteTimeout)
+	return fmt.Errorf("server has stopped, error: %v", err)
+}
+
+func (fs *FlowService) StartWorker(handler runtime.FlowDefinitionHandler) error {
+	fs.ConfigureDefault()
+	fs.runtime = &runtime.FlowRuntime{Handler: handler, OpenTracingUrl: fs.OpenTraceUrl, RedisURL: fs.RedisURL}
+	err := fs.runtime.StartQueueWorker("redis://"+fs.RedisURL+"/", fs.WorkerConcurrency)
+	return fmt.Errorf("worker has stopped, error: %v", err)
 }
 
 func (fs *FlowService) ConfigureDefault() {
@@ -50,11 +63,12 @@ func (fs *FlowService) ConfigureDefault() {
 	}
 }
 
-func (fs *FlowService) queueWorker(wg *sync.WaitGroup) {
-	defer wg.Done()
-	log.Print(fs.runtime.StartQueueWorker("redis://"+fs.RedisURL+"/", fs.WorkerConcurrency).Error())
+func (fs *FlowService) queueWorker(errorChan chan error) {
+	err := fs.runtime.StartQueueWorker("redis://"+fs.RedisURL+"/", fs.WorkerConcurrency)
+	errorChan <- fmt.Errorf("worker has stopped, error: %v", err)
 }
 
-func (fs *FlowService) server() {
-	log.Print(fs.runtime.StartServer(fs.Port, fs.RequestReadTimeout, fs.RequestWriteTimeout).Error())
+func (fs *FlowService) server(errorChan chan error) {
+	err := fs.runtime.StartServer(fs.Port, fs.RequestReadTimeout, fs.RequestWriteTimeout)
+	errorChan <- fmt.Errorf("server has stopped, error: %v", err)
 }

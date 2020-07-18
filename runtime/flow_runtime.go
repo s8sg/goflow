@@ -58,7 +58,7 @@ func (fRuntime *FlowRuntime) StartServer(port int, readTimeout time.Duration, wr
 
 	err := fRuntime.Init()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	s := &http.Server{
@@ -86,8 +86,7 @@ func (fRuntime *FlowRuntime) StartQueueWorker(redisUri string, concurrency int) 
 	}
 	goworker.SetSettings(settings)
 	goworker.Register("QueueWorker", fRuntime.queueReceiver)
-	goworker.Work()
-	return fmt.Errorf("go_worker could not be initiated")
+	return goworker.Work()
 }
 
 func EnqueueRequest(pr *runtime.Request) error {
