@@ -1,7 +1,8 @@
 # faas-flow-service
-
 FaaSFlow service is a go-based workflow engine
 
+![Build](https://github.com/faasflow/faas-flow-service/workflows/Faas-Flow-Service-Build/badge.svg)
+[![GoDoc](https://godoc.org/github.com/faasflow/faas-flow-service?status.svg)](https://godoc.org/github.com/faasflow/faas-flow-service)
 
 
 ## Install It 
