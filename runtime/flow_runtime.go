@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"github.com/benmanns/goworker"
 	"github.com/faasflow/goflow/eventhandler"
+	log2 "github.com/faasflow/goflow/log"
 	"github.com/faasflow/runtime"
 	"github.com/faasflow/runtime/controller/handler"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
-	"log"
 	"net/http"
 	"time"
 )
@@ -19,8 +19,10 @@ type FlowRuntime struct {
 	OpenTracingUrl string
 	RedisURL       string
 	stateStore     sdk.StateStore
-	dataStore      sdk.DataStore
+	DataStore      sdk.DataStore
+	Logger         sdk.Logger
 	eventHandler   sdk.EventHandler
+	settings       goworker.WorkerSettings
 }
 
 const (
@@ -35,9 +37,15 @@ func (fRuntime *FlowRuntime) Init() error {
 		return fmt.Errorf("Failed to initialize the StateStore, %v", err)
 	}
 
-	fRuntime.dataStore, err = initDataStore(fRuntime.RedisURL)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize the StateStore, %v", err)
+	if fRuntime.DataStore == nil {
+		fRuntime.DataStore, err = initDataStore(fRuntime.RedisURL)
+		if err != nil {
+			return fmt.Errorf("Failed to initialize the StateStore, %v", err)
+		}
+	}
+
+	if fRuntime.Logger == nil {
+		fRuntime.Logger = &log2.StdErrLogger{}
 	}
 
 	fRuntime.eventHandler = &eventhandler.FaasEventHandler{
@@ -48,7 +56,14 @@ func (fRuntime *FlowRuntime) Init() error {
 }
 
 func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Executor, error) {
-	ex := &FlowExecutor{StateStore: fRuntime.stateStore, DataStore: fRuntime.dataStore, EventHandler: fRuntime.eventHandler, Handler: fRuntime.Handler}
+	ex := &FlowExecutor{
+		StateStore:   fRuntime.stateStore,
+		DataStore:    fRuntime.DataStore,
+		EventHandler: fRuntime.eventHandler,
+		Handler:      fRuntime.Handler,
+		Logger:       fRuntime.Logger,
+		Runtime:      fRuntime,
+	}
 	error := ex.Init(req)
 	return ex, error
 }
@@ -74,7 +89,7 @@ func (fRuntime *FlowRuntime) StartServer(port int, readTimeout time.Duration, wr
 
 // StartQueueWorker starts listening for request in queue
 func (fRuntime *FlowRuntime) StartQueueWorker(redisUri string, concurrency int) error {
-	settings := goworker.WorkerSettings{
+	fRuntime.settings = goworker.WorkerSettings{
 		URI:            redisUri,
 		Connections:    100,
 		Queues:         []string{PartialRequestQueue},
@@ -84,45 +99,47 @@ func (fRuntime *FlowRuntime) StartQueueWorker(redisUri string, concurrency int) 
 		Namespace:      "resque:",
 		Interval:       1.0,
 	}
-	goworker.SetSettings(settings)
+	goworker.SetSettings(fRuntime.settings)
 	goworker.Register("QueueWorker", fRuntime.queueReceiver)
 	return goworker.Work()
 }
 
-func EnqueueRequest(pr *runtime.Request) error {
+func (fRuntime *FlowRuntime) EnqueueRequest(pr *runtime.Request) error {
 	encodedRequest, error := json.Marshal(pr)
 	if error != nil {
 		return fmt.Errorf("failed to marshal request while enqueing, error %v", error)
 	}
-
 	return goworker.Enqueue(&goworker.Job{
 		Queue: PartialRequestQueue,
 		Payload: goworker.Payload{
 			Class: "QueueWorker",
-			Args:  []interface{}{encodedRequest},
+			Args:  []interface{}{string(encodedRequest)},
 		},
 	})
 }
 
 func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) error {
-	if queue != "partial-request" {
+	fRuntime.Logger.Log(fmt.Sprintf("Request received by worker at queue %v", queue))
+	if queue != PartialRequestQueue {
 		return nil
 	}
 
-	reqData, ok := args[0].([]byte)
+	reqData, ok := args[0].(string)
 	if !ok {
-		return fmt.Errorf("failed to conver args to []byte, argument %v", args[0])
+		fRuntime.Logger.Log(fmt.Sprintf("failed to load argument %v", reqData))
+		return fmt.Errorf("failed to load argument %v", args[0])
 	}
 
 	request := &runtime.Request{}
-	err := json.Unmarshal(reqData, request)
+	err := json.Unmarshal([]byte(reqData), request)
 	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprintf("failed to unmarshal request, error %v", err))
 		return fmt.Errorf("failed to unmarshal request, error %v", err)
 	}
 
 	executor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
-		log.Print("failed to execute request " + request.RequestID + ", error: " + err.Error())
+		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`]  failed to execute request, error: %v", request.RequestID, err))
 		return fmt.Errorf("failed to execute request " + request.RequestID + ", error: " + err.Error())
 	}
 	response := &runtime.Response{}
@@ -131,6 +148,7 @@ func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) er
 
 	err = handler.PartialExecuteFlowHandler(response, request, executor)
 	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprint("request failed to be processed. error: " + err.Error()))
 		return fmt.Errorf("request failed to be processed. error: " + err.Error())
 	}
 

@@ -3,6 +3,7 @@ package goflow
 import (
 	"fmt"
 	"github.com/faasflow/goflow/runtime"
+	"github.com/faasflow/sdk"
 	"time"
 )
 
@@ -13,13 +14,21 @@ type FlowService struct {
 	RequestReadTimeout  time.Duration
 	RequestWriteTimeout time.Duration
 	OpenTraceUrl        string
+	DataStore           sdk.DataStore
+	Logger              sdk.Logger
 
 	runtime *runtime.FlowRuntime
 }
 
 func (fs *FlowService) Start(handler runtime.FlowDefinitionHandler) error {
 	fs.ConfigureDefault()
-	fs.runtime = &runtime.FlowRuntime{Handler: handler, OpenTracingUrl: fs.OpenTraceUrl, RedisURL: fs.RedisURL}
+	fs.runtime = &runtime.FlowRuntime{
+		Handler:        handler,
+		OpenTracingUrl: fs.OpenTraceUrl,
+		RedisURL:       fs.RedisURL,
+		DataStore:      fs.DataStore,
+		Logger:         fs.Logger,
+	}
 	errorChan := make(chan error)
 	defer close(errorChan)
 	go fs.queueWorker(errorChan)
@@ -30,14 +39,26 @@ func (fs *FlowService) Start(handler runtime.FlowDefinitionHandler) error {
 
 func (fs *FlowService) StartServer(handler runtime.FlowDefinitionHandler) error {
 	fs.ConfigureDefault()
-	fs.runtime = &runtime.FlowRuntime{Handler: handler, OpenTracingUrl: fs.OpenTraceUrl, RedisURL: fs.RedisURL}
+	fs.runtime = &runtime.FlowRuntime{
+		Handler:        handler,
+		OpenTracingUrl: fs.OpenTraceUrl,
+		RedisURL:       fs.RedisURL,
+		DataStore:      fs.DataStore,
+		Logger:         fs.Logger,
+	}
 	err := fs.runtime.StartServer(fs.Port, fs.RequestReadTimeout, fs.RequestWriteTimeout)
 	return fmt.Errorf("server has stopped, error: %v", err)
 }
 
 func (fs *FlowService) StartWorker(handler runtime.FlowDefinitionHandler) error {
 	fs.ConfigureDefault()
-	fs.runtime = &runtime.FlowRuntime{Handler: handler, OpenTracingUrl: fs.OpenTraceUrl, RedisURL: fs.RedisURL}
+	fs.runtime = &runtime.FlowRuntime{
+		Handler:        handler,
+		OpenTracingUrl: fs.OpenTraceUrl,
+		RedisURL:       fs.RedisURL,
+		DataStore:      fs.DataStore,
+		Logger:         fs.Logger,
+	}
 	err := fs.runtime.StartQueueWorker("redis://"+fs.RedisURL+"/", fs.WorkerConcurrency)
 	return fmt.Errorf("worker has stopped, error: %v", err)
 }

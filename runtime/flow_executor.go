@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/faasflow/goflow/eventhandler"
-	hlog "github.com/faasflow/goflow/log"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
 )
@@ -30,8 +29,9 @@ type FlowExecutor struct {
 	StateStore   sdk.StateStore
 	DataStore    sdk.DataStore
 	EventHandler sdk.EventHandler
-	logger       hlog.StdOutLogger
+	Logger       sdk.Logger
 	Handler      FlowDefinitionHandler
+	Runtime      *FlowRuntime
 }
 
 type FlowDefinitionHandler func(flow *goflow.Workflow, context *goflow.Context) error
@@ -52,7 +52,7 @@ func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 		faasHandler.Tracer.ExtendReqSpan(fe.reqID, faasHandler.CurrentNodeID, "", request)
 	}
 
-	err = EnqueueRequest(request)
+	err = fe.Runtime.EnqueueRequest(request)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue request, error %v", err)
 	}
@@ -153,7 +153,7 @@ func (fe *FlowExecutor) LoggingEnabled() bool {
 }
 
 func (fe *FlowExecutor) GetLogger() (sdk.Logger, error) {
-	return &fe.logger, nil
+	return fe.Logger, nil
 }
 
 func (fe *FlowExecutor) GetStateStore() (sdk.StateStore, error) {
