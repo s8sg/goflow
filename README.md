@@ -1,8 +1,8 @@
 # Go-Flow
 A Golang based workflow framework
 
-![Build](https://github.com/faasflow/faas-flow-service/workflows/GO-Flow-Build/badge.svg)
-[![GoDoc](https://godoc.org/github.com/faasflow/faas-flow-service?status.svg)](https://godoc.org/github.com/faasflow/faas-flow-service)
+![Build](https://github.com/faasflow/goflow/workflows/GO-Flow-Build/badge.svg) 
+[![GoDoc](https://godoc.org/github.com/faasflow/goflow?status.svg)](https://godoc.org/github.com/faasflow/goflow)
 
 ## Install It 
 Install GoFlow
@@ -12,6 +12,10 @@ go get github.com/faasflow/goflow
 ```
 
 ## Write First Flow
+> Library to Build Flow `github.com/faasflow/lib/goflow`
+
+[![GoDoc](https://godoc.org/github.com/faasflow/lib/goflow?status.svg)](https://godoc.org/github.com/faasflow/lib/goflow)
+
 Make a `flow.go` file
 ```go
 package main
