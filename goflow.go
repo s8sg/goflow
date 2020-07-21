@@ -20,9 +20,14 @@ type FlowService struct {
 	runtime *runtime.FlowRuntime
 }
 
-func (fs *FlowService) Start(handler runtime.FlowDefinitionHandler) error {
+func (fs *FlowService) Start(flowName string, handler runtime.FlowDefinitionHandler) error {
+	if flowName == "" {
+		return fmt.Errorf("flow-name must not be empty and a unique for each flow")
+	}
+
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
+		FlowName:       flowName,
 		Handler:        handler,
 		OpenTracingUrl: fs.OpenTraceUrl,
 		RedisURL:       fs.RedisURL,
@@ -37,9 +42,13 @@ func (fs *FlowService) Start(handler runtime.FlowDefinitionHandler) error {
 	return err
 }
 
-func (fs *FlowService) StartServer(handler runtime.FlowDefinitionHandler) error {
+func (fs *FlowService) StartServer(flowName string, handler runtime.FlowDefinitionHandler) error {
+	if flowName == "" {
+		return fmt.Errorf("flow-name must not be empty and a unique for each flow")
+	}
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
+		FlowName:       flowName,
 		Handler:        handler,
 		OpenTracingUrl: fs.OpenTraceUrl,
 		RedisURL:       fs.RedisURL,
@@ -50,9 +59,13 @@ func (fs *FlowService) StartServer(handler runtime.FlowDefinitionHandler) error 
 	return fmt.Errorf("server has stopped, error: %v", err)
 }
 
-func (fs *FlowService) StartWorker(handler runtime.FlowDefinitionHandler) error {
+func (fs *FlowService) StartWorker(flowName string, handler runtime.FlowDefinitionHandler) error {
+	if flowName == "" {
+		return fmt.Errorf("flow-name must not be empty and a unique for each flow")
+	}
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
+		FlowName:       flowName,
 		Handler:        handler,
 		OpenTracingUrl: fs.OpenTraceUrl,
 		RedisURL:       fs.RedisURL,

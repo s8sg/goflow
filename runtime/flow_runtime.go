@@ -15,6 +15,7 @@ import (
 )
 
 type FlowRuntime struct {
+	FlowName       string
 	Handler        FlowDefinitionHandler
 	OpenTracingUrl string
 	RedisURL       string
@@ -92,7 +93,7 @@ func (fRuntime *FlowRuntime) StartQueueWorker(redisUri string, concurrency int) 
 	fRuntime.settings = goworker.WorkerSettings{
 		URI:            redisUri,
 		Connections:    100,
-		Queues:         []string{PartialRequestQueue},
+		Queues:         []string{fRuntime.queueId()},
 		UseNumber:      true,
 		ExitOnComplete: false,
 		Concurrency:    concurrency,
@@ -110,7 +111,7 @@ func (fRuntime *FlowRuntime) EnqueueRequest(pr *runtime.Request) error {
 		return fmt.Errorf("failed to marshal request while enqueing, error %v", error)
 	}
 	return goworker.Enqueue(&goworker.Job{
-		Queue: PartialRequestQueue,
+		Queue: fRuntime.queueId(),
 		Payload: goworker.Payload{
 			Class: "QueueWorker",
 			Args:  []interface{}{string(encodedRequest)},
@@ -120,7 +121,7 @@ func (fRuntime *FlowRuntime) EnqueueRequest(pr *runtime.Request) error {
 
 func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) error {
 	fRuntime.Logger.Log(fmt.Sprintf("Request received by worker at queue %v", queue))
-	if queue != PartialRequestQueue {
+	if queue != fRuntime.queueId() {
 		return nil
 	}
 
@@ -153,4 +154,8 @@ func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) er
 	}
 
 	return nil
+}
+
+func (fRuntime *FlowRuntime) queueId() string {
+	return fmt.Sprint("%s_%s", PartialRequestQueue, fRuntime.FlowName)
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"regexp"
 
 	runtimepkg "github.com/faasflow/runtime"
 
@@ -37,7 +36,7 @@ func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimep
 		request := &runtimepkg.Request{
 			Body:      body,
 			Header:    req.Header,
-			FlowName:  getWorkflowNameFromHost(req.Host),
+			FlowName:  getFlowName(runtime),
 			RequestID: id,
 			Query:     reqParams,
 			RawQuery:  req.URL.RawQuery,
@@ -65,15 +64,10 @@ func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimep
 	}
 }
 
-// internal
-
-var re = regexp.MustCompile(`(?m)^[^:.]+\s*`)
-
-// getWorkflowNameFromHostFromHost returns the flow name from env
-func getWorkflowNameFromHost(host string) string {
-	matches := re.FindAllString(host, -1)
-	if matches[0] != "" {
-		return matches[0]
+func getFlowName(runtime runtimepkg.Runtime) string {
+	fr, ok := runtime.(*FlowRuntime)
+	if !ok {
+		return ""
 	}
-	return ""
+	return fr.FlowName
 }
