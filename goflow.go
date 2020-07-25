@@ -33,6 +33,10 @@ func (fs *FlowService) Start(flowName string, handler runtime.FlowDefinitionHand
 		RedisURL:       fs.RedisURL,
 		DataStore:      fs.DataStore,
 		Logger:         fs.Logger,
+		ServerPort:     fs.Port,
+		ReadTimeout:    fs.RequestReadTimeout,
+		WriteTimeout:   fs.RequestWriteTimeout,
+		Concurrency:    fs.WorkerConcurrency,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -54,8 +58,11 @@ func (fs *FlowService) StartServer(flowName string, handler runtime.FlowDefiniti
 		RedisURL:       fs.RedisURL,
 		DataStore:      fs.DataStore,
 		Logger:         fs.Logger,
+		ServerPort:     fs.Port,
+		ReadTimeout:    fs.RequestReadTimeout,
+		WriteTimeout:   fs.RequestWriteTimeout,
 	}
-	err := fs.runtime.StartServer(fs.Port, fs.RequestReadTimeout, fs.RequestWriteTimeout)
+	err := fs.runtime.StartServer()
 	return fmt.Errorf("server has stopped, error: %v", err)
 }
 
@@ -71,8 +78,9 @@ func (fs *FlowService) StartWorker(flowName string, handler runtime.FlowDefiniti
 		RedisURL:       fs.RedisURL,
 		DataStore:      fs.DataStore,
 		Logger:         fs.Logger,
+		Concurrency:    fs.WorkerConcurrency,
 	}
-	err := fs.runtime.StartQueueWorker("redis://"+fs.RedisURL+"/", fs.WorkerConcurrency)
+	err := fs.runtime.StartQueueWorker()
 	return fmt.Errorf("worker has stopped, error: %v", err)
 }
 
@@ -98,11 +106,11 @@ func (fs *FlowService) ConfigureDefault() {
 }
 
 func (fs *FlowService) queueWorker(errorChan chan error) {
-	err := fs.runtime.StartQueueWorker("redis://"+fs.RedisURL+"/", fs.WorkerConcurrency)
+	err := fs.runtime.StartQueueWorker()
 	errorChan <- fmt.Errorf("worker has stopped, error: %v", err)
 }
 
 func (fs *FlowService) server(errorChan chan error) {
-	err := fs.runtime.StartServer(fs.Port, fs.RequestReadTimeout, fs.RequestWriteTimeout)
+	err := fs.runtime.StartServer()
 	errorChan <- fmt.Errorf("server has stopped, error: %v", err)
 }
