@@ -72,7 +72,7 @@ func main() {
 		OpenTraceUrl:        "localhost:5775",
 		WorkerConcurrency:   5,
 	}
-	fs.StartWorker(DefineWorkflow)
+	fs.StartWorker("my-flow", DefineWorkflow)
 }
 ```
 
@@ -87,7 +87,7 @@ func main() {
 		OpenTraceUrl:        "localhost:5775",
 		WorkerConcurrency:   5,
 	}
-	fs.StartWorker(DefineWorkflow)
+	fs.StartWorker("my-flow", DefineWorkflow)
 }
 ```
 
