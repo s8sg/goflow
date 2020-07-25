@@ -3,6 +3,7 @@ package goflow
 import (
 	"fmt"
 	"github.com/faasflow/goflow/runtime"
+	runtimePkg "github.com/faasflow/runtime"
 	"github.com/faasflow/sdk"
 	"time"
 )
@@ -18,6 +19,37 @@ type FlowService struct {
 	Logger              sdk.Logger
 
 	runtime *runtime.FlowRuntime
+}
+
+type Request struct {
+	Body   []byte
+	Query  map[string][]string
+	Header map[string][]string
+}
+
+func (fs *FlowService) Execute(flowName string, req *Request) error {
+	if flowName == "" {
+		return fmt.Errorf("flowName must be provided to execute flow")
+	}
+
+	fs.ConfigureDefault()
+	fs.runtime = &runtime.FlowRuntime{
+		FlowName: flowName,
+		RedisURL: fs.RedisURL,
+	}
+
+	request := &runtimePkg.Request{
+		Header: req.Header,
+		Body:   req.Body,
+		Query:  req.Query,
+	}
+
+	err := fs.runtime.Execute(request)
+	if err != nil {
+		fmt.Errorf("failed to execute request, %v", err)
+	}
+
+	return nil
 }
 
 func (fs *FlowService) Start(flowName string, handler runtime.FlowDefinitionHandler) error {

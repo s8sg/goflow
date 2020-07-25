@@ -52,7 +52,7 @@ func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 		faasHandler.Tracer.ExtendReqSpan(fe.reqID, faasHandler.CurrentNodeID, "", request)
 	}
 
-	err = fe.Runtime.EnqueueRequest(request)
+	err = fe.Runtime.EnqueuePartialRequest(request)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue request, error %v", err)
 	}

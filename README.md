@@ -44,19 +44,26 @@ func main() {
 		OpenTraceUrl:        "localhost:5775",
 		WorkerConcurrency:   5,
 	}
-	fs.Start("my-flow", DefineWorkflow)
+	fs.Start("myflow", DefineWorkflow)
 }
 ```
+> `Start()` runs a HTTP Server that listen on the provided port and as a flow worker that handles the workload
 
 ## Run It 
+Start redis
 ```sh
-go build -o worker
-./worker
+docker run --name redis -p 5775:5775 -p 6379:6379 -d redis
+```
+
+Run the Flow
+```sh
+go build -o goflow
+./goflow
 ```
 
 ## Invoke It
 ```sh
-curl -d HelloWorld localhost:8080
+curl -d hallo localhost:8080
 ```
 
 ## Scale It
@@ -66,29 +73,52 @@ GoFlow scale horizontally, you can distribute the load by just adding more insta
 Alternatively you can start your goflow in worker mode. As a worker goflow only handles the workload, 
 and if required you can only scale the workers 
 ```go
-func main() {
-	fs := &goflow.FlowService{
-		RedisURL:            "localhost:6379",
-		OpenTraceUrl:        "localhost:5775",
-		WorkerConcurrency:   5,
-	}
-	fs.StartWorker("my-flow", DefineWorkflow)
+fs := &goflow.FlowService{
+    RedisURL:            "localhost:6379",
+    OpenTraceUrl:        "localhost:5775",
+    WorkerConcurrency:   5,
 }
+fs.StartWorker("myflow", DefineWorkflow)
 ```
 
 #### Server Mode
-Similarly you can start your goflow as a server. As a server goflow only handles the incoming http requests,
-and you will need to run workers to handle the workload
+Similarly you can start your goflow as a server. It only handles the incoming http requests you will 
+need to add workers to distribute the workload
 ```go
-func main() {
-	fs := &goflow.FlowService{
-	        Port:                8080,
-		RedisURL:            "localhost:6379",
-		OpenTraceUrl:        "localhost:5775",
-		WorkerConcurrency:   5,
-	}
-	fs.StartWorker("my-flow", DefineWorkflow)
+fs := &goflow.FlowService{
+    Port:                8080,
+    RedisURL:            "localhost:6379",
 }
+fs.StartServer("myflow", DefineWorkflow)
 ```
 
-> By default goflow runs both as a Server and a Worker mode
+## Execute It
+
+#### Using Client
+Using the client you can requests the flow directly without starting a http server. 
+The requests are always async and gets queued for the worker to pick up
+```go
+fs := &goflow.FlowService{
+    RedisURL: "localhost:6379",
+}
+fs.Execute("myflow", &goflow.Request{
+    Body: []byte("hallo")
+})
+```
+
+#### Using Resque/Ruby
+For testing, it is helpful to use the redis-cli program to insert jobs onto the Redis queue:
+```go
+redis-cli -r 100 RPUSH resque:queue:myflow '{"class":"GoFlow","args":["hallo"]}'
+```
+this will insert 100 jobs for the `GoFlow` worker onto the `myflow` queue. It is equivalent to
+```ruby
+class GoFlow
+  @queue = :myflow    # Flow name
+end
+
+100.times do
+  Resque.enqueue GoFlow, ['hallo']
+end
+```
+> Currently Resque based job only take one argument as string
