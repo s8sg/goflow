@@ -1,6 +1,9 @@
 # Go-Flow
 A Golang based high performance, scalable and distributed workflow framework
 
+It allows to programmatically author distributed workflows as Directed Acyclic Graphs (DAGs) of tasks. 
+Goflow executes your tasks on an array of goflow workers by uniformly distribute the loads 
+
 ![Build](https://github.com/faasflow/goflow/workflows/GO-Flow-Build/badge.svg) 
 [![GoDoc](https://godoc.org/github.com/faasflow/goflow?status.svg)](https://godoc.org/github.com/faasflow/goflow)
 
