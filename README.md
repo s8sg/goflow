@@ -10,7 +10,7 @@ Goflow executes your tasks on an array of goflow workers by uniformly distribute
 ## Install It 
 Install GoFlow
 ```sh
-go mod init test
+go mod init myflow
 go get github.com/faasflow/goflow
 ```
 
@@ -35,8 +35,8 @@ func doSomething(data []byte, option map[string][]string) ([]byte, error) {
 }
 
 // Define provide definition of the workflow
-func DefineWorkflow(flow *flow.Workflow, context *flow.Context) error {
-	flow.SyncNode().Apply("test", doSomething)
+func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
+	f.SyncNode().Apply("test", doSomething)
 	return nil
 }
 
@@ -125,3 +125,97 @@ end
 end
 ```
 > Currently Resque based job only take one argument as string
+
+## Creating More Complex DAG
+The initial example is a single vertex DAG.
+Single vertex DAG (referred as `SyncNode`) are great for synchronous task
+
+Using [GoFlow's DAG construct](https://godoc.org/github.com/faasflow/lib/goflow#Dag) one can achieve more complex compositions
+with multiple vertexes and connect them using edges.
+A multi-vertex flow is always asynchronous in nature where each nodes gets
+distributed across the workers
+
+Below is an example of a simple multi vertex flow
+```go
+func quote(data []byte, option map[string][]string) ([]byte, error) {
+	fmt.Println("Executing task 1")
+	quote := fmt.Sprintf("you said '%s'", string(data))
+	return []byte(quote), nil
+}
+
+func capitalize(data []byte, option map[string][]string) ([]byte, error) {
+	fmt.Println("Executing task 2")
+	capitalized := strings.ToUpper(string(data))
+	return []byte(capitalized), nil
+}
+
+func print(data []byte, option map[string][]string) ([]byte, error) {
+	fmt.Println("Executing task 3")
+	fmt.Println("Final Data: " + string(data))
+	return data, nil
+}
+
+// This function defines the DAG
+func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
+	dag := f.Dag()
+	dag.Node("task1").Apply("quote", quote)
+	dag.Node("task2").Apply("capitalize", capitalize)
+	dag.Node("task3").Apply("print", print)
+	dag.Edge("task1", "task2")
+	dag.Edge("task2", "task3")
+	return nil
+}
+```
+
+### Branching
+Branching are great for parallelizing asynchronous independent workload in separate branch
+
+Branching can be achieved with simple vertex and edges. GoFlow provides a special operator [Aggregator](https://godoc.org/github.com/faasflow/lib/goflow#Aggregator) to aggregate result of multiple branch on a converging node
+
+Below is an example of a simple branching
+```go
+func quote(data []byte, option map[string][]string) ([]byte, error) {
+	fmt.Println("Executing task 1")
+	quote := fmt.Sprintf("you said '%s'", string(data))
+	return []byte(quote), nil
+}
+
+func capitalize(data []byte, option map[string][]string) ([]byte, error) {
+	fmt.Println("Executing task 2")
+	capitalized := strings.ToUpper(string(data))
+	return []byte(capitalized), nil
+}
+
+func lowercase(data []byte, option map[string][]string) ([]byte, error) {
+	fmt.Println("Executing task 3")
+	lower := strings.ToLower(string(data))
+	return []byte(lower), nil
+}
+
+func print(data []byte, option map[string][]string) ([]byte, error) {
+	fmt.Println("Executing task 4")
+	fmt.Println("Final Data: " + string(data))
+	return data, nil
+}
+
+// This function defines the DAG
+func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
+    dag := f.Dag()
+    dag.Node("task1").Apply("quote", quote)
+    dag.Node("task2").Apply("capitalize", capitalize)
+    dag.Node("task3").Apply("lowercase", lowercase)
+
+    // Using Aggregator to aggregate the result from different branch
+    dag.Node("task4", flow.Aggregator(func(responses map[string][]byte) ([]byte, error) {
+        task2Response := responses["task2"]
+        task3Response := responses["task3"]
+        return []byte(string(task2Response) + ", " + string(task3Response)), nil
+    })).Apply("print", print)
+
+    dag.Edge("task1", "task2")
+    dag.Edge("task1", "task3")
+    dag.Edge("task2", "task4")
+    dag.Edge("task3", "task4")
+    return nil
+}
+```
