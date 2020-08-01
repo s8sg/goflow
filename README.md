@@ -1,8 +1,8 @@
 # Go-Flow
 A Golang based high performance, scalable and distributed workflow framework
 
-It allows to programmatically author distributed workflows as Directed Acyclic Graphs (DAGs) of tasks. 
-Goflow executes your tasks on an array of goflow workers by uniformly distribute the loads 
+It allows to programmatically author distributed workflow as Directed Acyclic Graph (DAG) of tasks. 
+Goflow executes your tasks on an array of goflow workers by uniformly distributing the loads 
 
 ![Build](https://github.com/faasflow/goflow/workflows/GO-Flow-Build/badge.svg) 
 [![GoDoc](https://godoc.org/github.com/faasflow/goflow?status.svg)](https://godoc.org/github.com/faasflow/goflow)
@@ -127,6 +127,10 @@ end
 > Currently Resque based job only take one argument as string
 
 
+<br />
+<br />
+<br />
+
 ## Creating More Complex DAG
 ![Gopher staring_at flow](https://repository-images.githubusercontent.com/277050358/1d541000-c94b-11ea-8a07-9441380e522f)
 
@@ -138,7 +142,8 @@ with multiple vertexes and connect them using edges.
 A multi-vertex flow is always asynchronous in nature where each nodes gets
 distributed across the workers
 
-Below is an example of a simple multi vertex flow where we validate a KYC image of a user profile
+Below is an example of a simple multi vertex flow to validate a KYC image of a user and mark the user according to the result.
+This is a asynchronous process consist of batch jobs
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
@@ -170,10 +175,6 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     // we are using a aggregator to create unified results
     dag.Node("mark-profile", flow.Aggregator(func(responses map[string][]byte) ([]byte, error) {
        status := validateResults(responses["face-detect"],  responses["face-match"])
-       status = "failure"
-       if status {
-          status = "success"
-       }
        return []byte(status), nil
     })).Apply("mark-profile", markProfileBasedOnStatus)
     dag.Edge("get-kyc-image", "face-detect")
@@ -193,11 +194,10 @@ completion
 func (currentDag *Dag) SubDag(vertex string, dag *Dag)
 ```
 
-Say we have a separate flow that needs the same set of steps to validate user. 
+Say we have a separate flow that needs the same set of steps to validate a user. 
 With our earlier example we can separate out the validation process into subdag and put it 
 in a library that can be shared across different flows
 ```go
-// in common-flow library 
 func KycImageValidationDag() *flow.Dag {
     dag := flow.NewDag()
     dag.Node("verify-url").Appply("verify-image-url", s3DocExists)
@@ -220,6 +220,7 @@ func KycImageValidationDag() *flow.Dag {
     return dag
 }
 ```
+Our existing flow embeds the library DAG
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
@@ -289,7 +290,7 @@ func (currentDag *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options
 [ForEach](https://godoc.org/github.com/faasflow/sdk#ForEach) is a special handler that allows user to dynamically 
 return a set of key and values. For each of the items in the returned set, the user defined dag will get executed 
 
-User gets the foreach branch as a response and can define each branch using the DAG constructs
+User gets the foreach branch as a response and can define the flow using the DAG constructs
 
 We are updating our flow to execute over a set of user that has been listed for possible fraud
 ```go
