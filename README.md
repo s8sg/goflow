@@ -132,7 +132,7 @@ end
 <br />
 
 ## Creating More Complex DAG
-![Gopher staring_at flow](https://repository-images.githubusercontent.com/277050358/1d541000-c94b-11ea-8a07-9441380e522f)
+![Gopher staring_at flow](doc/goflow-gopher.jpg)
 
 The initial example is a single vertex DAG.
 Single vertex DAG (referred as `SyncNode`) are great for synchronous task
@@ -156,6 +156,7 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
+![Async Flow](doc/goflow-async.jpg)
 
 ### Branching
 Branching are great for parallelizing independent workloads in separate branches
@@ -184,6 +185,8 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
+![Branching](doc/goflow-branching.jpg)
+
 ### Subdag
 Subdag allows to reuse existing DAG by embedding it into DAG with wider functionality
 
@@ -233,6 +236,7 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
+![Subdag](doc/goflow-subdag.jpg)
 
 ### Conditional Branching
 Conditional branching is a great way to choose different execution path dynamically
@@ -276,6 +280,7 @@ func KycImageValidationDag() *flow.Dag {
     return dag
 }
 ```
+![Conditional](doc/goflow-conditional-branching.jpg)
 
 ### Foreach Branching
 Foreach branching allows user to iteratively perform a certain set of task for a range of values
@@ -313,6 +318,7 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
+![Foreach](doc/goflow-foreach-branching.jpg)
 
 
  
