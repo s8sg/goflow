@@ -3,7 +3,7 @@ package runtime
 import (
 	"bytes"
 	"fmt"
-	"github.com/faasflow/lib/goflow"
+	"github.com/faasflow/goflow/flow"
 	"github.com/faasflow/runtime"
 	"io/ioutil"
 	"log"
@@ -34,7 +34,7 @@ type FlowExecutor struct {
 	Runtime      *FlowRuntime
 }
 
-type FlowDefinitionHandler func(flow *goflow.Workflow, context *goflow.Context) error
+type FlowDefinitionHandler func(flow *flow.Workflow, context *flow.Context) error
 
 func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 	var err error
@@ -100,8 +100,8 @@ func (fe *FlowExecutor) GetFlowName() string {
 }
 
 func (fe *FlowExecutor) GetFlowDefinition(pipeline *sdk.Pipeline, context *sdk.Context) error {
-	workflow := goflow.GetWorkflow(pipeline)
-	faasflowContext := (*goflow.Context)(context)
+	workflow := flow.GetWorkflow(pipeline)
+	faasflowContext := (*flow.Context)(context)
 	return fe.Handler(workflow, faasflowContext)
 }
 

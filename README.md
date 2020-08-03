@@ -2,7 +2,7 @@
 A Golang based high performance, scalable and distributed workflow framework
 
 It allows to programmatically author distributed workflow as Directed Acyclic Graph (DAG) of tasks. 
-Goflow executes your tasks on an array of goflow workers by uniformly distributing the loads 
+GoFlow executes your tasks on an array of Flow workers by uniformly distributing the loads 
 
 ![Build](https://github.com/faasflow/goflow/workflows/GO-Flow-Build/badge.svg) 
 [![GoDoc](https://godoc.org/github.com/faasflow/goflow?status.svg)](https://godoc.org/github.com/faasflow/goflow)
@@ -15,7 +15,7 @@ go get github.com/faasflow/goflow
 ```
 
 ## Write First Flow
-> Library to Build Flow `github.com/faasflow/lib/goflow`
+> Library to Build Flow `github.com/faasflow/goflow/flow`
 
 [![GoDoc](https://godoc.org/github.com/faasflow/lib/goflow?status.svg)](https://godoc.org/github.com/faasflow/lib/goflow)
 
@@ -26,7 +26,7 @@ package main
 import (
 	"fmt"
 	"github.com/faasflow/goflow"
-	flow "github.com/faasflow/lib/goflow"
+	flow "github.com/faasflow/goflow/flow"
 )
 
 // Workload function
@@ -73,7 +73,7 @@ curl -d hallo localhost:8080
 GoFlow scale horizontally, you can distribute the load by just adding more instances.
 
 #### Worker Mode
-Alternatively you can start your goflow in worker mode. As a worker goflow only handles the workload, 
+Alternatively you can start your GoFlow in worker mode. As a worker GoFlow only handles the workload, 
 and if required you can only scale the workers 
 ```go
 fs := &goflow.FlowService{
@@ -85,7 +85,7 @@ fs.StartWorker("myflow", DefineWorkflow)
 ```
 
 #### Server Mode
-Similarly you can start your goflow as a server. It only handles the incoming http requests you will 
+Similarly you can start your GoFlow as a server. It only handles the incoming http requests you will 
 need to add workers to distribute the workload
 ```go
 fs := &goflow.FlowService{
