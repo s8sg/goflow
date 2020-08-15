@@ -3,8 +3,8 @@ package runtime
 import (
 	"fmt"
 	"github.com/benmanns/goworker"
-	"github.com/faasflow/goflow/eventhandler"
-	log2 "github.com/faasflow/goflow/log"
+	"github.com/s8sg/goflow/eventhandler"
+	log2 "github.com/s8sg/goflow/log"
 	"github.com/faasflow/runtime"
 	"github.com/faasflow/runtime/controller/handler"
 	sdk "github.com/faasflow/sdk"
@@ -234,11 +234,11 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 }
 
 func (fRuntime *FlowRuntime) partialRequestQueueId() string {
-	return fmt.Sprintf("%s_%s", PartialRequestQueue, fRuntime.FlowName)
+	return fmt.Sprintf("%s:%s", PartialRequestQueue, fRuntime.FlowName)
 }
 
 func (fRuntime *FlowRuntime) newRequestQueueId() string {
-	return fmt.Sprintf("%s_%s", NewRequestQueue, fRuntime.FlowName)
+	return fmt.Sprintf("%s:%s", NewRequestQueue, fRuntime.FlowName)
 }
 
 func (fRuntime *FlowRuntime) requestQueueId() string {

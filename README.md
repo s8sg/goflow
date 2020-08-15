@@ -4,20 +4,20 @@ A Golang based high performance, scalable and distributed workflow framework
 It allows to programmatically author distributed workflow as Directed Acyclic Graph (DAG) of tasks. 
 GoFlow executes your tasks on an array of Flow workers by uniformly distributing the loads 
 
-![Build](https://github.com/faasflow/goflow/workflows/GO-Flow-Build/badge.svg) 
-[![GoDoc](https://godoc.org/github.com/faasflow/goflow?status.svg)](https://godoc.org/github.com/faasflow/goflow)
+![Build](https://github.com/s8sg/goflow/workflows/GO-Flow-Build/badge.svg) 
+[![GoDoc](https://godoc.org/github.com/s8sg/goflow?status.svg)](https://godoc.org/github.com/s8sg/goflow)
 
 ## Install It 
 Install GoFlow
 ```sh
 go mod init myflow
-go get github.com/faasflow/goflow
+go get github.com/s8sg/goflow
 ```
 
 ## Write First Flow
-> Library to Build Flow `github.com/faasflow/goflow/flow`
+> Library to Build Flow `github.com/s8sg/goflow/flow`
 
-[![GoDoc](https://godoc.org/github.com/faasflow/lib/goflow?status.svg)](https://godoc.org/github.com/faasflow/lib/goflow)
+[![GoDoc](https://godoc.org/github.com/faasflow/goflow/flow?status.svg)](https://godoc.org/github.com/faasflow/goflow/flow)
 
 Make a `flow.go` file
 ```go
@@ -25,8 +25,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/faasflow/goflow"
-	flow "github.com/faasflow/goflow/flow"
+	"github.com/s8sg/goflow"
+	flow "github.com/s8sg/goflow/flow"
 )
 
 // Workload function

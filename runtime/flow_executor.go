@@ -3,7 +3,7 @@ package runtime
 import (
 	"bytes"
 	"fmt"
-	"github.com/faasflow/goflow/flow"
+	"github.com/s8sg/goflow/flow"
 	"github.com/faasflow/runtime"
 	"io/ioutil"
 	"log"
@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/faasflow/goflow/eventhandler"
+	"github.com/s8sg/goflow/eventhandler"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
 )
