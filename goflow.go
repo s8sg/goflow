@@ -72,6 +72,9 @@ func (fs *FlowService) Start(flowName string, handler runtime.FlowDefinitionHand
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
+	if err := fs.initRuntime(); err!= nil {
+		return err
+	}
 	go fs.queueWorker(errorChan)
 	go fs.server(errorChan)
 	err := <-errorChan
@@ -94,6 +97,9 @@ func (fs *FlowService) StartServer(flowName string, handler runtime.FlowDefiniti
 		ReadTimeout:    fs.RequestReadTimeout,
 		WriteTimeout:   fs.RequestWriteTimeout,
 	}
+	if err := fs.initRuntime(); err!= nil {
+		return err
+	}
 	err := fs.runtime.StartServer()
 	return fmt.Errorf("server has stopped, error: %v", err)
 }
@@ -111,6 +117,9 @@ func (fs *FlowService) StartWorker(flowName string, handler runtime.FlowDefiniti
 		DataStore:      fs.DataStore,
 		Logger:         fs.Logger,
 		Concurrency:    fs.WorkerConcurrency,
+	}
+	if err := fs.initRuntime(); err!= nil {
+		return err
 	}
 	err := fs.runtime.StartQueueWorker()
 	return fmt.Errorf("worker has stopped, error: %v", err)
@@ -135,6 +144,15 @@ func (fs *FlowService) ConfigureDefault() {
 	if fs.RequestWriteTimeout == 0 {
 		fs.RequestWriteTimeout = 120 * time.Second
 	}
+}
+
+func (fs *FlowService) initRuntime() error {
+	err := fs.runtime.Init()
+	if err != nil {
+		return err
+	}
+	fs.runtime.SetWorkerConfig()
+	return nil
 }
 
 func (fs *FlowService) queueWorker(errorChan chan error) {

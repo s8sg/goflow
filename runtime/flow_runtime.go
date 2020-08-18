@@ -1,14 +1,15 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 	"github.com/benmanns/goworker"
-	"github.com/s8sg/goflow/eventhandler"
-	log2 "github.com/s8sg/goflow/log"
 	"github.com/faasflow/runtime"
 	"github.com/faasflow/runtime/controller/handler"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
+	"github.com/s8sg/goflow/eventhandler"
+	log2 "github.com/s8sg/goflow/log"
 	"net/http"
 	"time"
 )
@@ -28,6 +29,7 @@ type FlowRuntime struct {
 
 	eventHandler sdk.EventHandler
 	settings     goworker.WorkerSettings
+	srv          *http.Server
 }
 
 const (
@@ -75,16 +77,14 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 }
 
 func (fRuntime *FlowRuntime) Execute(request *runtime.Request) error {
-	fRuntime.settings = goworker.WorkerSettings{
+	settings := goworker.WorkerSettings{
 		URI:            "redis://" + fRuntime.RedisURL + "/",
-		Connections:    100,
+		Connections:    10,
 		Queues:         []string{fRuntime.newRequestQueueId()},
 		UseNumber:      true,
-		ExitOnComplete: false,
 		Namespace:      "resque:",
-		Interval:       1.0,
 	}
-	goworker.SetSettings(fRuntime.settings)
+	goworker.SetSettings(settings)
 	return goworker.Enqueue(&goworker.Job{
 		Queue: fRuntime.newRequestQueueId(),
 		Payload: goworker.Payload{
@@ -94,44 +94,7 @@ func (fRuntime *FlowRuntime) Execute(request *runtime.Request) error {
 	})
 }
 
-// StartServer starts listening for new request
-func (fRuntime *FlowRuntime) StartServer() error {
-
-	err := fRuntime.Init()
-	if err != nil {
-		return err
-	}
-
-	s := &http.Server{
-		Addr:           fmt.Sprintf(":%d", fRuntime.ServerPort),
-		ReadTimeout:    fRuntime.ReadTimeout,
-		WriteTimeout:   fRuntime.WriteTimeout,
-		Handler:        router(fRuntime),
-		MaxHeaderBytes: 1 << 20, // Max header of 1MB
-	}
-
-	fRuntime.settings = goworker.WorkerSettings{
-		URI:            "redis://" + fRuntime.RedisURL + "/",
-		Connections:    100,
-		Queues:         []string{fRuntime.partialRequestQueueId()},
-		UseNumber:      true,
-		ExitOnComplete: false,
-		Concurrency:    fRuntime.Concurrency,
-		Namespace:      "resque:",
-		Interval:       1.0,
-	}
-	goworker.SetSettings(fRuntime.settings)
-
-	return s.ListenAndServe()
-}
-
-// StartQueueWorker starts listening for request in queue
-func (fRuntime *FlowRuntime) StartQueueWorker() error {
-	err := fRuntime.Init()
-	if err != nil {
-		return err
-	}
-
+func (fRuntime *FlowRuntime) SetWorkerConfig() {
 	fRuntime.settings = goworker.WorkerSettings{
 		URI:            "redis://" + fRuntime.RedisURL + "/",
 		Connections:    100,
@@ -143,8 +106,32 @@ func (fRuntime *FlowRuntime) StartQueueWorker() error {
 		Interval:       1.0,
 	}
 	goworker.SetSettings(fRuntime.settings)
-	goworker.Register("GoFlow", fRuntime.queueReceiver)
+}
 
+// StartServer starts listening for new request
+func (fRuntime *FlowRuntime) StartServer() error {
+	fRuntime.srv = &http.Server{
+		Addr:           fmt.Sprintf(":%d", fRuntime.ServerPort),
+		ReadTimeout:    fRuntime.ReadTimeout,
+		WriteTimeout:   fRuntime.WriteTimeout,
+		Handler:        router(fRuntime),
+		MaxHeaderBytes: 1 << 20, // Max header of 1MB
+	}
+
+	return fRuntime.srv.ListenAndServe()
+}
+
+// StopServer stops the server
+func (fRuntime *FlowRuntime) StopServer() error {
+	if err := fRuntime.srv.Shutdown(context.Background()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// StartQueueWorker starts listening for request in queue
+func (fRuntime *FlowRuntime) StartQueueWorker() error {
+	goworker.Register("GoFlow", fRuntime.queueReceiver)
 	return goworker.Work()
 }
 
