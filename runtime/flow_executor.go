@@ -3,17 +3,17 @@ package runtime
 import (
 	"bytes"
 	"fmt"
-	"github.com/s8sg/goflow/flow"
 	"github.com/faasflow/runtime"
+	"github.com/s8sg/goflow/flow"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/s8sg/goflow/eventhandler"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
+	"github.com/s8sg/goflow/eventhandler"
 )
 
 // A signature of SHA265 equivalent of github.com/s8sg/faas-flow

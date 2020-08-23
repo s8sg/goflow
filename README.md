@@ -47,7 +47,8 @@ func main() {
 		OpenTraceUrl:        "localhost:5775",
 		WorkerConcurrency:   5,
 	}
-	fs.Start("myflow", DefineWorkflow)
+	fs.Register("myflow", DefineWorkflow)
+	fs.Start()
 }
 ```
 > `Start()` runs a HTTP Server that listen on the provided port and as a flow worker that handles the workload
@@ -66,7 +67,7 @@ go build -o goflow
 
 ## Invoke It
 ```sh
-curl -d hallo localhost:8080
+curl -d hallo localhost:8080/myflow
 ```
 
 ## Scale It
@@ -81,7 +82,8 @@ fs := &goflow.FlowService{
     OpenTraceUrl:        "localhost:5775",
     WorkerConcurrency:   5,
 }
-fs.StartWorker("myflow", DefineWorkflow)
+fs.Register("myflow", DefineWorkflow)
+fs.StartWorker()
 ```
 
 #### Server Mode
@@ -92,8 +94,17 @@ fs := &goflow.FlowService{
     Port:                8080,
     RedisURL:            "localhost:6379",
 }
-fs.StartServer("myflow", DefineWorkflow)
+fs.Register("myflow", DefineWorkflow)
+fs.StartServer()
 ```
+
+<br />
+
+> `Register()` allows user to bind multiple flows onto single flow service
+>```go
+>fs.Register("createUser", DefineCreateUserFlow)
+>fs.Register("deleteUser", DefineDeleteUserFlow)
+>```` 
 
 ## Execute It
 

@@ -12,6 +12,7 @@ type FlowService struct {
 	Port                int
 	RedisURL            string
 	WorkerConcurrency   int
+	Flows               map[string]runtime.FlowDefinitionHandler
 	RequestReadTimeout  time.Duration
 	RequestWriteTimeout time.Duration
 	OpenTraceUrl        string
@@ -34,7 +35,6 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		FlowName: flowName,
 		RedisURL: fs.RedisURL,
 	}
 
@@ -44,7 +44,7 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 		Query:  req.Query,
 	}
 
-	err := fs.runtime.Execute(request)
+	err := fs.runtime.Execute(flowName, request)
 	if err != nil {
 		fmt.Errorf("failed to execute request, %v", err)
 	}
@@ -52,15 +52,34 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 	return nil
 }
 
-func (fs *FlowService) Start(flowName string, handler runtime.FlowDefinitionHandler) error {
+func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionHandler) error {
 	if flowName == "" {
-		return fmt.Errorf("flow-name must not be empty and a unique for each flow")
+		return fmt.Errorf("flow-name must not be empty")
+	}
+	if handler == nil {
+		return fmt.Errorf("handler must not be nil")
 	}
 
+	if fs.Flows == nil {
+		fs.Flows = make(map[string]runtime.FlowDefinitionHandler)
+	}
+
+	if fs.Flows[flowName] != nil {
+		return fmt.Errorf("flow-name must be unique for each flow")
+	}
+
+	fs.Flows[flowName] = handler
+
+	return nil
+}
+
+func (fs *FlowService) Start() error {
+	if len(fs.Flows) == 0 {
+		return fmt.Errorf("must register atleast one flow")
+	}
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		FlowName:       flowName,
-		Handler:        handler,
+		Flows:          fs.Flows,
 		OpenTracingUrl: fs.OpenTraceUrl,
 		RedisURL:       fs.RedisURL,
 		DataStore:      fs.DataStore,
@@ -72,7 +91,7 @@ func (fs *FlowService) Start(flowName string, handler runtime.FlowDefinitionHand
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
-	if err := fs.initRuntime(); err!= nil {
+	if err := fs.initRuntime(); err != nil {
 		return err
 	}
 	go fs.queueWorker(errorChan)
@@ -87,8 +106,7 @@ func (fs *FlowService) StartServer(flowName string, handler runtime.FlowDefiniti
 	}
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		FlowName:       flowName,
-		Handler:        handler,
+		Flows:          fs.Flows,
 		OpenTracingUrl: fs.OpenTraceUrl,
 		RedisURL:       fs.RedisURL,
 		DataStore:      fs.DataStore,
@@ -97,7 +115,7 @@ func (fs *FlowService) StartServer(flowName string, handler runtime.FlowDefiniti
 		ReadTimeout:    fs.RequestReadTimeout,
 		WriteTimeout:   fs.RequestWriteTimeout,
 	}
-	if err := fs.initRuntime(); err!= nil {
+	if err := fs.initRuntime(); err != nil {
 		return err
 	}
 	err := fs.runtime.StartServer()
@@ -110,15 +128,14 @@ func (fs *FlowService) StartWorker(flowName string, handler runtime.FlowDefiniti
 	}
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		FlowName:       flowName,
-		Handler:        handler,
+		Flows:          fs.Flows,
 		OpenTracingUrl: fs.OpenTraceUrl,
 		RedisURL:       fs.RedisURL,
 		DataStore:      fs.DataStore,
 		Logger:         fs.Logger,
 		Concurrency:    fs.WorkerConcurrency,
 	}
-	if err := fs.initRuntime(); err!= nil {
+	if err := fs.initRuntime(); err != nil {
 		return err
 	}
 	err := fs.runtime.StartQueueWorker()

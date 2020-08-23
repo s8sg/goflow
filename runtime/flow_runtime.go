@@ -11,12 +11,12 @@ import (
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type FlowRuntime struct {
-	FlowName       string
-	Handler        FlowDefinitionHandler
+	Flows          map[string]FlowDefinitionHandler
 	OpenTracingUrl string
 	RedisURL       string
 	stateStore     sdk.StateStore
@@ -64,11 +64,15 @@ func (fRuntime *FlowRuntime) Init() error {
 }
 
 func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Executor, error) {
+	flowHandler, ok := fRuntime.Flows[req.FlowName]
+	if !ok {
+		return nil, fmt.Errorf("could not find handler for flow %s", req.FlowName)
+	}
 	ex := &FlowExecutor{
 		StateStore:   fRuntime.stateStore,
 		DataStore:    fRuntime.DataStore,
 		EventHandler: fRuntime.eventHandler,
-		Handler:      fRuntime.Handler,
+		Handler:      flowHandler,
 		Logger:       fRuntime.Logger,
 		Runtime:      fRuntime,
 	}
@@ -76,29 +80,37 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 	return ex, error
 }
 
-func (fRuntime *FlowRuntime) Execute(request *runtime.Request) error {
+func (fRuntime *FlowRuntime) Execute(flowName string, request *runtime.Request) error {
 	settings := goworker.WorkerSettings{
-		URI:            "redis://" + fRuntime.RedisURL + "/",
-		Connections:    10,
-		Queues:         []string{fRuntime.newRequestQueueId()},
-		UseNumber:      true,
-		Namespace:      "resque:",
+		URI:         "redis://" + fRuntime.RedisURL + "/",
+		Connections: 10,
+		Queues:      []string{fRuntime.newRequestQueueId(flowName)},
+		UseNumber:   true,
+		Namespace:   "resque:",
 	}
 	goworker.SetSettings(settings)
 	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.newRequestQueueId(),
+		Queue: fRuntime.newRequestQueueId(flowName),
 		Payload: goworker.Payload{
 			Class: "GoFlow",
-			Args:  []interface{}{request.RequestID, string(request.Body), request.Header, request.RawQuery, request.Query},
+			Args:  []interface{}{flowName, request.RequestID, string(request.Body), request.Header, request.RawQuery, request.Query},
 		},
 	})
 }
 
 func (fRuntime *FlowRuntime) SetWorkerConfig() {
+	var queues []string
+	for flowName, _ := range fRuntime.Flows {
+		queues = append(queues,
+			fRuntime.requestQueueId(flowName),
+			fRuntime.partialRequestQueueId(flowName),
+			fRuntime.newRequestQueueId(flowName),
+		)
+	}
 	fRuntime.settings = goworker.WorkerSettings{
 		URI:            "redis://" + fRuntime.RedisURL + "/",
 		Connections:    100,
-		Queues:         []string{fRuntime.requestQueueId(), fRuntime.partialRequestQueueId(), fRuntime.newRequestQueueId()},
+		Queues:         queues,
 		UseNumber:      true,
 		ExitOnComplete: false,
 		Concurrency:    fRuntime.Concurrency,
@@ -137,10 +149,10 @@ func (fRuntime *FlowRuntime) StartQueueWorker() error {
 
 func (fRuntime *FlowRuntime) EnqueuePartialRequest(pr *runtime.Request) error {
 	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.partialRequestQueueId(),
+		Queue: fRuntime.partialRequestQueueId(pr.FlowName),
 		Payload: goworker.Payload{
 			Class: "GoFlow",
-			Args:  []interface{}{pr.RequestID, string(pr.Body), pr.Header, pr.RawQuery, pr.Query},
+			Args:  []interface{}{pr.FlowName, pr.RequestID, string(pr.Body), pr.Header, pr.RawQuery, pr.Query},
 		},
 	})
 }
@@ -149,24 +161,22 @@ func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) er
 	fRuntime.Logger.Log(fmt.Sprintf("Request received by worker at queue %v", queue))
 	var err error
 
-	switch queue {
-	case fRuntime.partialRequestQueueId():
+	switch {
+	case isPartialRequest(queue):
 		request, err := makeRequestFromArgs(args...)
 		if err != nil {
 			fRuntime.Logger.Log(err.Error())
 			return err
 		}
-		request.FlowName = fRuntime.FlowName
 		err = fRuntime.handlePartialRequest(request)
-	case fRuntime.newRequestQueueId():
+	case isNewRequest(queue):
 		request, err := makeRequestFromArgs(args...)
 		if err != nil {
 			fRuntime.Logger.Log(err.Error())
 			return err
 		}
-		request.FlowName = fRuntime.FlowName
 		err = fRuntime.handleNewRequest(request)
-	case fRuntime.requestQueueId():
+	default:
 		request := &runtime.Request{}
 		body, ok := args[0].(string)
 		if !ok {
@@ -174,11 +184,8 @@ func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) er
 			return fmt.Errorf("failed to load request body as string from %v", args[0])
 		}
 		request.Body = []byte(body)
-		request.FlowName = fRuntime.FlowName
+		request.FlowName = queue
 		err = fRuntime.handleNewRequest(request)
-	default:
-		fRuntime.Logger.Log(fmt.Sprintf("Request queue mismatch %s/%s", queue, fRuntime.partialRequestQueueId()))
-		return nil
 	}
 
 	return err
@@ -220,39 +227,47 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 	return nil
 }
 
-func (fRuntime *FlowRuntime) partialRequestQueueId() string {
-	return fmt.Sprintf("%s:%s", PartialRequestQueue, fRuntime.FlowName)
+func (fRuntime *FlowRuntime) partialRequestQueueId(flowName string) string {
+	return fmt.Sprintf("%s:%s", PartialRequestQueue, flowName)
 }
 
-func (fRuntime *FlowRuntime) newRequestQueueId() string {
-	return fmt.Sprintf("%s:%s", NewRequestQueue, fRuntime.FlowName)
+func (fRuntime *FlowRuntime) newRequestQueueId(flowName string) string {
+	return fmt.Sprintf("%s:%s", NewRequestQueue, flowName)
 }
 
-func (fRuntime *FlowRuntime) requestQueueId() string {
-	return fRuntime.FlowName
+func (fRuntime *FlowRuntime) requestQueueId(flowName string) string {
+	return flowName
 }
 
 func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 	request := &runtime.Request{}
 
 	if args[0] != nil {
-		requestId, ok := args[0].(string)
+		flowName, ok := args[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to load flowName from arguments %v", args[0])
+		}
+		request.FlowName = flowName
+	}
+
+	if args[1] != nil {
+		requestId, ok := args[1].(string)
 		if !ok {
 			return nil, fmt.Errorf("failed to load requestId from arguments %v", args[0])
 		}
 		request.RequestID = requestId
 	}
 
-	if args[1] != nil {
-		body, ok := args[1].(string)
+	if args[2] != nil {
+		body, ok := args[2].(string)
 		if !ok {
 			return nil, fmt.Errorf("failed to load body from arguments %v", args[1])
 		}
 		request.Body = []byte(body)
 	}
 
-	if args[2] != nil {
-		header, ok := args[2].(map[string][]string)
+	if args[3] != nil {
+		header, ok := args[3].(map[string][]string)
 		if !ok {
 
 			return nil, fmt.Errorf("failed to load header from arguments %v", args[2])
@@ -262,8 +277,8 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 		request.Header = make(map[string][]string)
 	}
 
-	if args[3] != nil {
-		rawQuery, ok := args[3].(string)
+	if args[4] != nil {
+		rawQuery, ok := args[4].(string)
 		if !ok {
 
 			return nil, fmt.Errorf("failed to load raw-query from arguments %v", args[3])
@@ -271,8 +286,8 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 		request.RawQuery = rawQuery
 	}
 
-	if args[4] != nil {
-		query, ok := args[4].(map[string][]string)
+	if args[5] != nil {
+		query, ok := args[5].(map[string][]string)
 		if !ok {
 
 			return nil, fmt.Errorf("failed to load query from arguments %v", args[4])
@@ -283,4 +298,12 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 	}
 
 	return request, nil
+}
+
+func isPartialRequest(queue string) bool {
+	return strings.HasPrefix(queue, PartialRequestQueue)
+}
+
+func isNewRequest(queue string) bool {
+	return strings.HasPrefix(queue, NewRequestQueue)
 }
