@@ -56,7 +56,7 @@ func main() {
 ## Run It 
 Start redis
 ```sh
-docker run --name redis -p 5775:5775 -p 6379:6379 -d redis
+docker run --name redis -p 6379:6379 -d redis
 ```
 
 Run the Flow
@@ -86,30 +86,18 @@ fs.Register("myflow", DefineWorkflow)
 fs.StartWorker()
 ```
 
-#### Server Mode
-Similarly you can start your GoFlow as a server. It only handles the incoming http requests you will 
-need to add workers to distribute the workload
+#### Register Multiple Flow
+`Register()` allows user to bind multiple flows onto single flow service. 
+This way a server and or a worker can be used for more than one flows
 ```go
-fs := &goflow.FlowService{
-    Port:                8080,
-    RedisURL:            "localhost:6379",
-}
-fs.Register("myflow", DefineWorkflow)
-fs.StartServer()
-```
-
-<br />
-
-> `Register()` allows user to bind multiple flows onto single flow service
->```go
->fs.Register("createUser", DefineCreateUserFlow)
->fs.Register("deleteUser", DefineDeleteUserFlow)
->```` 
+fs.Register("createUser", DefineCreateUserFlow)
+fs.Register("deleteUser", DefineDeleteUserFlow)
+```` 
 
 ## Execute It
 
 #### Using Client
-Using the client you can requests the flow directly without starting a http server. 
+Using the client you can requests the flow directly. 
 The requests are always async and gets queued for the worker to pick up
 ```go
 fs := &goflow.FlowService{
@@ -120,26 +108,14 @@ fs.Execute("myflow", &goflow.Request{
 })
 ```
 
-#### Using Resque/Ruby
+#### Using Redis
 For testing, it is helpful to use the redis-cli program to insert jobs onto the Redis queue:
 ```go
-redis-cli -r 100 RPUSH resque:queue:myflow '{"class":"GoFlow","args":["hallo"]}'
+redis-cli -r 100 RPUSH goflow:queue:myflow '{"class":"GoFlow","args":["hallo"]}'
 ```
-this will insert 100 jobs for the `GoFlow` worker onto the `myflow` queue. It is equivalent to
-```ruby
-class GoFlow
-  @queue = :myflow    # Flow name
-end
+this will insert 100 jobs for the `GoFlow` worker onto the `myflow` queue
+> Currently redis queue based job only take one argument as string
 
-100.times do
-  Resque.enqueue GoFlow, ['hallo']
-end
-```
-> Currently Resque based job only take one argument as string
-
-
-<br />
-<br />
 <br />
 
 ## Creating More Complex DAG

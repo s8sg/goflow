@@ -86,7 +86,7 @@ func (fRuntime *FlowRuntime) Execute(flowName string, request *runtime.Request) 
 		Connections: 10,
 		Queues:      []string{fRuntime.newRequestQueueId(flowName)},
 		UseNumber:   true,
-		Namespace:   "resque:",
+		Namespace:   "goflow:",
 	}
 	goworker.SetSettings(settings)
 	return goworker.Enqueue(&goworker.Job{
@@ -114,7 +114,7 @@ func (fRuntime *FlowRuntime) SetWorkerConfig() {
 		UseNumber:      true,
 		ExitOnComplete: false,
 		Concurrency:    fRuntime.Concurrency,
-		Namespace:      "resque:",
+		Namespace:      "goflow:",
 		Interval:       1.0,
 	}
 	goworker.SetSettings(fRuntime.settings)
