@@ -4,16 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/faasflow/runtime"
+	sdk "github.com/faasflow/sdk"
+	"github.com/faasflow/sdk/executor"
+	"github.com/s8sg/goflow/eventhandler"
 	"github.com/s8sg/goflow/flow"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"strings"
-
-	sdk "github.com/faasflow/sdk"
-	"github.com/faasflow/sdk/executor"
-	"github.com/s8sg/goflow/eventhandler"
 )
 
 // A signature of SHA265 equivalent of github.com/s8sg/faas-flow
@@ -26,6 +23,7 @@ type FlowExecutor struct {
 	CallbackURL             string // the callback url
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
+	EnableMonitoring        bool
 	partialState            []byte
 	rawRequest              *executor.RawRequest
 	StateStore              sdk.StateStore
@@ -124,11 +122,7 @@ func (fe *FlowExecutor) GetReqAuthKey() (string, error) {
 }
 
 func (fe *FlowExecutor) MonitoringEnabled() bool {
-	tracing := os.Getenv("enable_tracing")
-	if strings.ToUpper(tracing) == "TRUE" {
-		return true
-	}
-	return false
+	return fe.EnableMonitoring
 }
 
 func (fe *FlowExecutor) GetEventHandler() (sdk.EventHandler, error) {

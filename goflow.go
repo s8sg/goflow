@@ -20,6 +20,7 @@ type FlowService struct {
 	OpenTraceUrl            string
 	DataStore               sdk.DataStore
 	Logger                  sdk.Logger
+	EnableMonitoring        bool
 
 	runtime *runtime.FlowRuntime
 }
@@ -109,6 +110,7 @@ func (fs *FlowService) Start() error {
 		Concurrency:             fs.WorkerConcurrency,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		EnableMonitoring:        fs.EnableMonitoring,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -135,6 +137,7 @@ func (fs *FlowService) StartServer() error {
 		WriteTimeout:            fs.RequestWriteTimeout,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		EnableMonitoring:        fs.EnableMonitoring,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -158,6 +161,7 @@ func (fs *FlowService) StartWorker() error {
 		Concurrency:             fs.WorkerConcurrency,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		EnableMonitoring:        fs.EnableMonitoring,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)

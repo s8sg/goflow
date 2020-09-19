@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/benmanns/goworker"
 	"github.com/faasflow/runtime"
@@ -14,7 +15,6 @@ import (
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
 	redis "gopkg.in/redis.v5"
-	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -34,6 +34,7 @@ type FlowRuntime struct {
 	WriteTimeout            time.Duration
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
+	EnableMonitoring        bool
 
 	eventHandler sdk.EventHandler
 	settings     goworker.WorkerSettings
@@ -54,7 +55,7 @@ const (
 	WorkerKeyInitial           = "goflow-worker"
 
 	GoFlowRegisterInterval = 4
-	RDBKeyTimeOut = 10
+	RDBKeyTimeOut          = 10
 )
 
 func (fRuntime *FlowRuntime) Init() error {
@@ -99,6 +100,7 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 		RequestAuthEnabled:      fRuntime.RequestAuthEnabled,
 		DataStore:               fRuntime.DataStore,
 		EventHandler:            fRuntime.eventHandler,
+		EnableMonitoring:        fRuntime.EnableMonitoring,
 		Handler:                 flowHandler,
 		Logger:                  fRuntime.Logger,
 		Runtime:                 fRuntime,
@@ -311,7 +313,7 @@ func (fRuntime *FlowRuntime) saveWorkerDetails(worker *Worker) error {
 	rdb := fRuntime.rdb
 	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
 	value := marshalWorker(worker)
-	rdb.Set(key, value, time.Second * RDBKeyTimeOut)
+	rdb.Set(key, value, time.Second*RDBKeyTimeOut)
 	return nil
 }
 
@@ -319,7 +321,7 @@ func (fRuntime *FlowRuntime) saveFlowDetails(flows map[string]string) error {
 	rdb := fRuntime.rdb
 	for flowId, definition := range flows {
 		key := fmt.Sprintf("%s:%s", FlowKeyInitial, flowId)
-		rdb.Set(key, definition, time.Second * RDBKeyTimeOut)
+		rdb.Set(key, definition, time.Second*RDBKeyTimeOut)
 	}
 	return nil
 }
