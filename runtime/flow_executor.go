@@ -20,18 +20,20 @@ import (
 const defaultHmacKey = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
 
 type FlowExecutor struct {
-	gateway      string
-	flowName     string // the name of the function
-	reqID        string // the request id
-	CallbackURL  string // the callback url
-	partialState []byte
-	rawRequest   *executor.RawRequest
-	StateStore   sdk.StateStore
-	DataStore    sdk.DataStore
-	EventHandler sdk.EventHandler
-	Logger       sdk.Logger
-	Handler      FlowDefinitionHandler
-	Runtime      *FlowRuntime
+	gateway                 string
+	flowName                string // the name of the function
+	reqID                   string // the request id
+	CallbackURL             string // the callback url
+	RequestAuthSharedSecret string
+	RequestAuthEnabled      bool
+	partialState            []byte
+	rawRequest              *executor.RawRequest
+	StateStore              sdk.StateStore
+	DataStore               sdk.DataStore
+	EventHandler            sdk.EventHandler
+	Logger                  sdk.Logger
+	Handler                 FlowDefinitionHandler
+	Runtime                 *FlowRuntime
 }
 
 type FlowDefinitionHandler func(flow *flow.Workflow, context *flow.Context) error
@@ -106,34 +108,19 @@ func (fe *FlowExecutor) GetFlowDefinition(pipeline *sdk.Pipeline, context *sdk.C
 }
 
 func (fe *FlowExecutor) ReqValidationEnabled() bool {
-	status := true
-	hmacStatus := os.Getenv("validate_request")
-	if strings.ToUpper(hmacStatus) == "FALSE" {
-		status = false
-	}
-	return status
+	return false
 }
 
 func (fe *FlowExecutor) GetValidationKey() (string, error) {
-	key, keyErr := ReadSecret("faasflow-hmac-secret")
-	if keyErr != nil {
-		key = defaultHmacKey
-	}
-	return key, nil
+	return "", nil
 }
 
 func (fe *FlowExecutor) ReqAuthEnabled() bool {
-	status := false
-	verifyStatus := os.Getenv("authenticate_request")
-	if strings.ToUpper(verifyStatus) == "TRUE" {
-		status = true
-	}
-	return status
+	return fe.RequestAuthEnabled
 }
 
 func (fe *FlowExecutor) GetReqAuthKey() (string, error) {
-	key, keyErr := ReadSecret("faasflow-hmac-secret")
-	return key, keyErr
+	return fe.RequestAuthSharedSecret, nil
 }
 
 func (fe *FlowExecutor) MonitoringEnabled() bool {

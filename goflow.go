@@ -9,15 +9,17 @@ import (
 )
 
 type FlowService struct {
-	Port                int
-	RedisURL            string
-	WorkerConcurrency   int
-	Flows               map[string]runtime.FlowDefinitionHandler
-	RequestReadTimeout  time.Duration
-	RequestWriteTimeout time.Duration
-	OpenTraceUrl        string
-	DataStore           sdk.DataStore
-	Logger              sdk.Logger
+	Port                    int
+	RedisURL                string
+	RequestAuthSharedSecret string
+	RequestAuthEnabled      bool
+	WorkerConcurrency       int
+	Flows                   map[string]runtime.FlowDefinitionHandler
+	RequestReadTimeout      time.Duration
+	RequestWriteTimeout     time.Duration
+	OpenTraceUrl            string
+	DataStore               sdk.DataStore
+	Logger                  sdk.Logger
 
 	runtime *runtime.FlowRuntime
 }
@@ -35,7 +37,9 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		RedisURL: fs.RedisURL,
+		RedisURL:                fs.RedisURL,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
 
 	request := &runtimePkg.Request{
@@ -51,6 +55,21 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 
 	return nil
 }
+
+/*
+// TODO:
+func (fs *FlowService) Pause(flowName string, requestId string) error {
+	return nil
+}
+// TODO:
+func (fs *FlowService) Resume(flowName string, requestId string) error {
+	return nil
+}
+// TODO:
+func (fs *FlowService) Stop(flowName string, requestId string) error {
+	return nil
+}
+*/
 
 func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionHandler) error {
 	if flowName == "" {
@@ -79,21 +98,24 @@ func (fs *FlowService) Start() error {
 	}
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		Flows:          fs.Flows,
-		OpenTracingUrl: fs.OpenTraceUrl,
-		RedisURL:       fs.RedisURL,
-		DataStore:      fs.DataStore,
-		Logger:         fs.Logger,
-		ServerPort:     fs.Port,
-		ReadTimeout:    fs.RequestReadTimeout,
-		WriteTimeout:   fs.RequestWriteTimeout,
-		Concurrency:    fs.WorkerConcurrency,
+		Flows:                   fs.Flows,
+		OpenTracingUrl:          fs.OpenTraceUrl,
+		RedisURL:                fs.RedisURL,
+		DataStore:               fs.DataStore,
+		Logger:                  fs.Logger,
+		ServerPort:              fs.Port,
+		ReadTimeout:             fs.RequestReadTimeout,
+		WriteTimeout:            fs.RequestWriteTimeout,
+		Concurrency:             fs.WorkerConcurrency,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
 	if err := fs.initRuntime(); err != nil {
 		return err
 	}
+	go fs.runtimeWorker(errorChan)
 	go fs.queueWorker(errorChan)
 	go fs.server(errorChan)
 	err := <-errorChan
@@ -103,36 +125,48 @@ func (fs *FlowService) Start() error {
 func (fs *FlowService) StartServer() error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		Flows:          fs.Flows,
-		OpenTracingUrl: fs.OpenTraceUrl,
-		RedisURL:       fs.RedisURL,
-		DataStore:      fs.DataStore,
-		Logger:         fs.Logger,
-		ServerPort:     fs.Port,
-		ReadTimeout:    fs.RequestReadTimeout,
-		WriteTimeout:   fs.RequestWriteTimeout,
+		Flows:                   fs.Flows,
+		OpenTracingUrl:          fs.OpenTraceUrl,
+		RedisURL:                fs.RedisURL,
+		DataStore:               fs.DataStore,
+		Logger:                  fs.Logger,
+		ServerPort:              fs.Port,
+		ReadTimeout:             fs.RequestReadTimeout,
+		WriteTimeout:            fs.RequestWriteTimeout,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
 	}
+	errorChan := make(chan error)
+	defer close(errorChan)
 	if err := fs.initRuntime(); err != nil {
 		return err
 	}
-	err := fs.runtime.StartServer()
+	go fs.runtimeWorker(errorChan)
+	go fs.server(errorChan)
+	err := <-errorChan
 	return fmt.Errorf("server has stopped, error: %v", err)
 }
 
 func (fs *FlowService) StartWorker() error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
-		Flows:          fs.Flows,
-		OpenTracingUrl: fs.OpenTraceUrl,
-		RedisURL:       fs.RedisURL,
-		DataStore:      fs.DataStore,
-		Logger:         fs.Logger,
-		Concurrency:    fs.WorkerConcurrency,
+		Flows:                   fs.Flows,
+		OpenTracingUrl:          fs.OpenTraceUrl,
+		RedisURL:                fs.RedisURL,
+		DataStore:               fs.DataStore,
+		Logger:                  fs.Logger,
+		Concurrency:             fs.WorkerConcurrency,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
 	}
+	errorChan := make(chan error)
+	defer close(errorChan)
 	if err := fs.initRuntime(); err != nil {
 		return err
 	}
-	err := fs.runtime.StartQueueWorker()
+	go fs.runtimeWorker(errorChan)
+	go fs.queueWorker(errorChan)
+	err := <-errorChan
 	return fmt.Errorf("worker has stopped, error: %v", err)
 }
 
@@ -164,6 +198,11 @@ func (fs *FlowService) initRuntime() error {
 	}
 	fs.runtime.SetWorkerConfig()
 	return nil
+}
+
+func (fs *FlowService) runtimeWorker(errorChan chan error) {
+	err := fs.runtime.StartRuntime()
+	errorChan <- fmt.Errorf("runtime has stopped, error: %v", err)
 }
 
 func (fs *FlowService) queueWorker(errorChan chan error) {

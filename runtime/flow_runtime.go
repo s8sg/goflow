@@ -8,37 +8,62 @@ import (
 	"github.com/faasflow/runtime/controller/handler"
 	sdk "github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
+	"github.com/faasflow/sdk/exporter"
+	"github.com/jasonlvhit/gocron"
+	"github.com/rs/xid"
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
+	redis "gopkg.in/redis.v5"
+	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 )
 
 type FlowRuntime struct {
-	Flows          map[string]FlowDefinitionHandler
-	OpenTracingUrl string
-	RedisURL       string
-	stateStore     sdk.StateStore
-	DataStore      sdk.DataStore
-	Logger         sdk.Logger
-	Concurrency    int
-	ServerPort     int
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
+	Flows                   map[string]FlowDefinitionHandler
+	OpenTracingUrl          string
+	RedisURL                string
+	stateStore              sdk.StateStore
+	DataStore               sdk.DataStore
+	Logger                  sdk.Logger
+	Concurrency             int
+	ServerPort              int
+	ReadTimeout             time.Duration
+	WriteTimeout            time.Duration
+	RequestAuthSharedSecret string
+	RequestAuthEnabled      bool
 
 	eventHandler sdk.EventHandler
 	settings     goworker.WorkerSettings
 	srv          *http.Server
+	rdb          *redis.Client
+}
+
+type Worker struct {
+	ID          string   `json: id`
+	Flows       []string `json: flows`
+	Concurrency int      `json: concurrency`
 }
 
 const (
-	PartialRequestQueue = "goflow-partial-request"
-	NewRequestQueue     = "goflow-request"
+	PartialRequestQueueInitial = "goflow-partial-request"
+	NewRequestQueueInitial     = "goflow-request"
+	FlowKeyInitial             = "goflow-flow"
+	WorkerKeyInitial           = "goflow-worker"
+
+	GoFlowRegisterInterval = 4
+	RDBKeyTimeOut = 10
 )
 
 func (fRuntime *FlowRuntime) Init() error {
 	var err error
+
+	fRuntime.rdb = redis.NewClient(&redis.Options{
+		Addr: fRuntime.RedisURL,
+		DB:   0,
+	})
 
 	fRuntime.stateStore, err = initStateStore(fRuntime.RedisURL)
 	if err != nil {
@@ -69,12 +94,14 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 		return nil, fmt.Errorf("could not find handler for flow %s", req.FlowName)
 	}
 	ex := &FlowExecutor{
-		StateStore:   fRuntime.stateStore,
-		DataStore:    fRuntime.DataStore,
-		EventHandler: fRuntime.eventHandler,
-		Handler:      flowHandler,
-		Logger:       fRuntime.Logger,
-		Runtime:      fRuntime,
+		StateStore:              fRuntime.stateStore,
+		RequestAuthSharedSecret: fRuntime.RequestAuthSharedSecret,
+		RequestAuthEnabled:      fRuntime.RequestAuthEnabled,
+		DataStore:               fRuntime.DataStore,
+		EventHandler:            fRuntime.eventHandler,
+		Handler:                 flowHandler,
+		Logger:                  fRuntime.Logger,
+		Runtime:                 fRuntime,
 	}
 	error := ex.Init(req)
 	return ex, error
@@ -145,6 +172,47 @@ func (fRuntime *FlowRuntime) StopServer() error {
 func (fRuntime *FlowRuntime) StartQueueWorker() error {
 	goworker.Register("GoFlow", fRuntime.queueReceiver)
 	return goworker.Work()
+}
+
+// StartRuntime starts the runtime
+func (fRuntime *FlowRuntime) StartRuntime() error {
+	worker := &Worker{
+		ID:          getNewId(),
+		Flows:       make([]string, 0, len(fRuntime.Flows)),
+		Concurrency: fRuntime.Concurrency,
+	}
+	// Get the flow details for each flow
+	flowDetails := make(map[string]string)
+	for flowID, handler := range fRuntime.Flows {
+		worker.Flows = append(worker.Flows, flowID)
+		dag, err := getFlowDefinition(handler)
+		if err != nil {
+			return fmt.Errorf("failed to strat runtime, dag export failed, error %v", err)
+		}
+		flowDetails[flowID] = dag
+	}
+	err := fRuntime.saveWorkerDetails(worker)
+	if err != nil {
+		return fmt.Errorf("failed to register worker details, %v", err)
+	}
+	err = fRuntime.saveFlowDetails(flowDetails)
+	if err != nil {
+		return fmt.Errorf("failed to register worker details, %v", err)
+	}
+	gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
+		var err error
+		err = fRuntime.saveWorkerDetails(worker)
+		if err != nil {
+			log.Printf("failed to register worker details, %v", err)
+		}
+		err = fRuntime.saveFlowDetails(flowDetails)
+		if err != nil {
+			log.Printf("failed to register worker details, %v", err)
+		}
+	})
+	<-gocron.Start()
+
+	return fmt.Errorf("runtime stopped")
 }
 
 func (fRuntime *FlowRuntime) EnqueuePartialRequest(pr *runtime.Request) error {
@@ -228,15 +296,37 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 }
 
 func (fRuntime *FlowRuntime) partialRequestQueueId(flowName string) string {
-	return fmt.Sprintf("%s:%s", PartialRequestQueue, flowName)
+	return fmt.Sprintf("%s:%s", PartialRequestQueueInitial, flowName)
 }
 
 func (fRuntime *FlowRuntime) newRequestQueueId(flowName string) string {
-	return fmt.Sprintf("%s:%s", NewRequestQueue, flowName)
+	return fmt.Sprintf("%s:%s", NewRequestQueueInitial, flowName)
 }
 
 func (fRuntime *FlowRuntime) requestQueueId(flowName string) string {
 	return flowName
+}
+
+func (fRuntime *FlowRuntime) saveWorkerDetails(worker *Worker) error {
+	rdb := fRuntime.rdb
+	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
+	value := marshalWorker(worker)
+	rdb.Set(key, value, time.Second * RDBKeyTimeOut)
+	return nil
+}
+
+func (fRuntime *FlowRuntime) saveFlowDetails(flows map[string]string) error {
+	rdb := fRuntime.rdb
+	for flowId, definition := range flows {
+		key := fmt.Sprintf("%s:%s", FlowKeyInitial, flowId)
+		rdb.Set(key, definition, time.Second * RDBKeyTimeOut)
+	}
+	return nil
+}
+
+func marshalWorker(worker *Worker) string {
+	jsonDef, _ := json.Marshal(worker)
+	return string(jsonDef)
 }
 
 func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
@@ -301,9 +391,26 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 }
 
 func isPartialRequest(queue string) bool {
-	return strings.HasPrefix(queue, PartialRequestQueue)
+	return strings.HasPrefix(queue, PartialRequestQueueInitial)
 }
 
 func isNewRequest(queue string) bool {
-	return strings.HasPrefix(queue, NewRequestQueue)
+	return strings.HasPrefix(queue, NewRequestQueueInitial)
+}
+
+func getFlowDefinition(handler FlowDefinitionHandler) (string, error) {
+	ex := &FlowExecutor{
+		Handler: handler,
+	}
+	flowExporter := exporter.CreateFlowExporter(ex)
+	resp, err := flowExporter.Export()
+	if err != nil {
+		return "", err
+	}
+	return string(resp), nil
+}
+
+func getNewId() string {
+	guid := xid.New()
+	return guid.String()
 }
