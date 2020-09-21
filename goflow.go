@@ -100,10 +100,7 @@ func (fs *FlowService) Start() error {
 	return err
 }
 
-func (fs *FlowService) StartServer(flowName string, handler runtime.FlowDefinitionHandler) error {
-	if flowName == "" {
-		return fmt.Errorf("flow-name must not be empty and a unique for each flow")
-	}
+func (fs *FlowService) StartServer() error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
 		Flows:          fs.Flows,
@@ -122,10 +119,7 @@ func (fs *FlowService) StartServer(flowName string, handler runtime.FlowDefiniti
 	return fmt.Errorf("server has stopped, error: %v", err)
 }
 
-func (fs *FlowService) StartWorker(flowName string, handler runtime.FlowDefinitionHandler) error {
-	if flowName == "" {
-		return fmt.Errorf("flow-name must not be empty and a unique for each flow")
-	}
+func (fs *FlowService) StartWorker() error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
 		Flows:          fs.Flows,
