@@ -82,7 +82,7 @@ func (fRuntime *FlowRuntime) Init() error {
 		fRuntime.Logger = &log2.StdErrLogger{}
 	}
 
-	fRuntime.eventHandler = &eventhandler.FaasEventHandler{
+	fRuntime.eventHandler = &eventhandler.GoFlowEventHandler{
 		TraceURI: fRuntime.OpenTracingUrl,
 	}
 
@@ -345,7 +345,7 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 	if args[1] != nil {
 		requestId, ok := args[1].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to load requestId from arguments %v", args[0])
+			return nil, fmt.Errorf("failed to load requestId from arguments %v", args[1])
 		}
 		request.RequestID = requestId
 	}
@@ -353,40 +353,42 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 	if args[2] != nil {
 		body, ok := args[2].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to load body from arguments %v", args[1])
+			return nil, fmt.Errorf("failed to load body from arguments %v", args[2])
 		}
 		request.Body = []byte(body)
 	}
 
+	request.Header = make(map[string][]string)
 	if args[3] != nil {
-		header, ok := args[3].(map[string][]string)
+		header, ok := args[3].(map[string]interface{})
 		if !ok {
-
-			return nil, fmt.Errorf("failed to load header from arguments %v", args[2])
+			return nil, fmt.Errorf("failed to load header from arguments %v", args[3])
 		}
-		request.Header = header
-	} else {
-		request.Header = make(map[string][]string)
+		for key, value := range header {
+			headerValue := value.([]interface{})
+			request.Header[key] = []string{ headerValue[0].(string) }
+		}
 	}
 
 	if args[4] != nil {
 		rawQuery, ok := args[4].(string)
 		if !ok {
 
-			return nil, fmt.Errorf("failed to load raw-query from arguments %v", args[3])
+			return nil, fmt.Errorf("failed to load raw-query from arguments %v", args[4])
 		}
 		request.RawQuery = rawQuery
 	}
 
+	request.Query = make(map[string][]string)
 	if args[5] != nil {
-		query, ok := args[5].(map[string][]string)
+		query, ok := args[5].(map[string]interface{})
 		if !ok {
-
-			return nil, fmt.Errorf("failed to load query from arguments %v", args[4])
+			return nil, fmt.Errorf("failed to load query from arguments %v", args[5])
 		}
-		request.Query = query
-	} else {
-		request.Query = make(map[string][]string)
+		for key, value := range query {
+			queryValue := value.([]interface{})
+			request.Query[key] = []string{ queryValue[0].(string) }
+		}
 	}
 
 	return request, nil

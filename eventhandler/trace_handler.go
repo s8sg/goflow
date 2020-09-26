@@ -3,6 +3,7 @@ package eventhandler
 import (
 	"fmt"
 	"github.com/faasflow/runtime"
+	"net/http"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -58,22 +59,24 @@ func (tracerObj *TraceHandler) ExtendReqSpan(reqID string, lastNode string, url 
 	if span == nil {
 		return
 	}
-
 	ext.SpanKindRPCClient.Set(span)
 	ext.HTTPUrl.Set(span, url)
 	ext.HTTPMethod.Set(span, "POST")
+
+	header := make(http.Header)
 	err := span.Tracer().Inject(
 		span.Context(),
 		opentracing.HTTPHeaders,
-		opentracing.HTTPHeadersCarrier(req.Header),
+		opentracing.HTTPHeadersCarrier(header),
 	)
 	if err != nil {
 		fmt.Printf("[Request %s] failed to extend req span for tracing, error %v\n", reqID, err)
 	}
-	if req.GetHeader("Uber-Trace-Id") == "" {
+	if header.Get("Uber-Trace-Id") == "" {
 		fmt.Printf("[Request %s] failed to extend req span for tracing, error Uber-Trace-Id not set\n",
 			reqID)
 	}
+	req.Header["Uber-Trace-Id"] = []string{header.Get("Uber-Trace-Id")}
 }
 
 // StopReqSpan terminate a request span

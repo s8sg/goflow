@@ -38,7 +38,6 @@ type FlowDefinitionHandler func(flow *flow.Workflow, context *flow.Context) erro
 
 func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 	var err error
-
 	request := &runtime.Request{}
 	request.Body, err = partial.Encode()
 	if err != nil {
@@ -46,12 +45,12 @@ func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 	}
 	request.RequestID = fe.reqID
 	request.FlowName = fe.flowName
-
+	request.Header = make(map[string][]string)
 	if fe.MonitoringEnabled() {
-		faasHandler := fe.EventHandler.(*eventhandler.FaasEventHandler)
+		faasHandler := fe.EventHandler.(*eventhandler.GoFlowEventHandler)
 		faasHandler.Tracer.ExtendReqSpan(fe.reqID, faasHandler.CurrentNodeID, "", request)
 	}
-
+	fmt.Println(request.Header)
 	err = fe.Runtime.EnqueuePartialRequest(request)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue request, error %v", err)
@@ -151,7 +150,7 @@ func (fe *FlowExecutor) Init(request *runtime.Request) error {
 	callbackURL := request.GetHeader("X-Faas-Flow-Callback-Url")
 	fe.CallbackURL = callbackURL
 
-	faasHandler := fe.EventHandler.(*eventhandler.FaasEventHandler)
+	faasHandler := fe.EventHandler.(*eventhandler.GoFlowEventHandler)
 	faasHandler.Header = request.Header
 
 	return nil
