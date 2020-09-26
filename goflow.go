@@ -26,9 +26,10 @@ type FlowService struct {
 }
 
 type Request struct {
-	Body   []byte
-	Query  map[string][]string
-	Header map[string][]string
+	Body      []byte
+	RequestId string
+	Query     map[string][]string
+	Header    map[string][]string
 }
 
 func (fs *FlowService) Execute(flowName string, req *Request) error {
@@ -44,9 +45,10 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 	}
 
 	request := &runtimePkg.Request{
-		Header: req.Header,
-		Body:   req.Body,
-		Query:  req.Query,
+		Header:    req.Header,
+		RequestID: req.RequestId,
+		Body:      req.Body,
+		Query:     req.Query,
 	}
 
 	err := fs.runtime.Execute(flowName, request)

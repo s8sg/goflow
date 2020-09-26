@@ -366,7 +366,7 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 		}
 		for key, value := range header {
 			headerValue := value.([]interface{})
-			request.Header[key] = []string{ headerValue[0].(string) }
+			request.Header[key] = []string{headerValue[0].(string)}
 		}
 	}
 
@@ -387,7 +387,7 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 		}
 		for key, value := range query {
 			queryValue := value.([]interface{})
-			request.Query[key] = []string{ queryValue[0].(string) }
+			request.Query[key] = []string{queryValue[0].(string)}
 		}
 	}
 
