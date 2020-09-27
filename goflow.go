@@ -59,20 +59,89 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 	return nil
 }
 
-/*
-// TODO:
 func (fs *FlowService) Pause(flowName string, requestId string) error {
+	if flowName == "" {
+		return fmt.Errorf("flowName must be provided")
+	}
+
+	if requestId == "" {
+		return fmt.Errorf("request Id must be provided")
+	}
+
+	fs.ConfigureDefault()
+	fs.runtime = &runtime.FlowRuntime{
+		RedisURL:                fs.RedisURL,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
+	}
+
+	request := &runtimePkg.Request{
+		RequestID: requestId,
+	}
+
+	err := fs.runtime.Pause(flowName, request)
+	if err != nil {
+		fmt.Errorf("failed to pause request, %v", err)
+	}
+
 	return nil
 }
-// TODO:
+
 func (fs *FlowService) Resume(flowName string, requestId string) error {
+	if flowName == "" {
+		return fmt.Errorf("flowName must be provided")
+	}
+
+	if requestId == "" {
+		return fmt.Errorf("request Id must be provided")
+	}
+
+	fs.ConfigureDefault()
+	fs.runtime = &runtime.FlowRuntime{
+		RedisURL:                fs.RedisURL,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
+	}
+
+	request := &runtimePkg.Request{
+		RequestID: requestId,
+	}
+
+	err := fs.runtime.Resume(flowName, request)
+	if err != nil {
+		fmt.Errorf("failed to resume request, %v", err)
+	}
+
 	return nil
 }
-// TODO:
+
 func (fs *FlowService) Stop(flowName string, requestId string) error {
+	if flowName == "" {
+		return fmt.Errorf("flowName must be provided")
+	}
+
+	if requestId == "" {
+		return fmt.Errorf("request Id must be provided")
+	}
+
+	fs.ConfigureDefault()
+	fs.runtime = &runtime.FlowRuntime{
+		RedisURL:                fs.RedisURL,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
+	}
+
+	request := &runtimePkg.Request{
+		RequestID: requestId,
+	}
+
+	err := fs.runtime.Stop(flowName, request)
+	if err != nil {
+		fmt.Errorf("failed to stop request, %v", err)
+	}
+
 	return nil
 }
-*/
 
 func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionHandler) error {
 	if flowName == "" {

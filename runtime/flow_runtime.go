@@ -49,13 +49,18 @@ type Worker struct {
 }
 
 const (
-	PartialRequestQueueInitial = "goflow-partial-request"
-	NewRequestQueueInitial     = "goflow-request"
-	FlowKeyInitial             = "goflow-flow"
-	WorkerKeyInitial           = "goflow-worker"
+	InternalRequestQueueInitial = "goflow-internal-request"
+	FlowKeyInitial              = "goflow-flow"
+	WorkerKeyInitial            = "goflow-worker"
 
 	GoFlowRegisterInterval = 4
 	RDBKeyTimeOut          = 10
+
+	PartialRequest = "PARTIAL"
+	NewRequest     = "NEW"
+	PauseRequest   = "PAUSE"
+	ResumeRequest  = "RESUME"
+	StopRequest    = "STOP"
 )
 
 func (fRuntime *FlowRuntime) Init() error {
@@ -113,16 +118,82 @@ func (fRuntime *FlowRuntime) Execute(flowName string, request *runtime.Request) 
 	settings := goworker.WorkerSettings{
 		URI:         "redis://" + fRuntime.RedisURL + "/",
 		Connections: 10,
-		Queues:      []string{fRuntime.newRequestQueueId(flowName)},
+		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
 		UseNumber:   true,
 		Namespace:   "goflow:",
 	}
 	goworker.SetSettings(settings)
 	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.newRequestQueueId(flowName),
+		Queue: fRuntime.internalRequestQueueId(flowName),
 		Payload: goworker.Payload{
 			Class: "GoFlow",
-			Args:  []interface{}{flowName, request.RequestID, string(request.Body), request.Header, request.RawQuery, request.Query},
+			Args: []interface{}{
+				flowName, request.RequestID, string(request.Body),
+				request.Header, request.RawQuery, request.Query, NewRequest,
+			},
+		},
+	})
+}
+
+func (fRuntime *FlowRuntime) Pause(flowName string, request *runtime.Request) error {
+	settings := goworker.WorkerSettings{
+		URI:         "redis://" + fRuntime.RedisURL + "/",
+		Connections: 10,
+		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
+		UseNumber:   true,
+		Namespace:   "goflow:",
+	}
+	goworker.SetSettings(settings)
+	return goworker.Enqueue(&goworker.Job{
+		Queue: fRuntime.internalRequestQueueId(flowName),
+		Payload: goworker.Payload{
+			Class: "GoFlow",
+			Args: []interface{}{
+				flowName, request.RequestID, string(request.Body),
+				request.Header, request.RawQuery, request.Query, PauseRequest,
+			},
+		},
+	})
+}
+
+func (fRuntime *FlowRuntime) Stop(flowName string, request *runtime.Request) error {
+	settings := goworker.WorkerSettings{
+		URI:         "redis://" + fRuntime.RedisURL + "/",
+		Connections: 10,
+		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
+		UseNumber:   true,
+		Namespace:   "goflow:",
+	}
+	goworker.SetSettings(settings)
+	return goworker.Enqueue(&goworker.Job{
+		Queue: fRuntime.internalRequestQueueId(flowName),
+		Payload: goworker.Payload{
+			Class: "GoFlow",
+			Args: []interface{}{
+				flowName, request.RequestID, string(request.Body),
+				request.Header, request.RawQuery, request.Query, StopRequest,
+			},
+		},
+	})
+}
+
+func (fRuntime *FlowRuntime) Resume(flowName string, request *runtime.Request) error {
+	settings := goworker.WorkerSettings{
+		URI:         "redis://" + fRuntime.RedisURL + "/",
+		Connections: 10,
+		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
+		UseNumber:   true,
+		Namespace:   "goflow:",
+	}
+	goworker.SetSettings(settings)
+	return goworker.Enqueue(&goworker.Job{
+		Queue: fRuntime.internalRequestQueueId(flowName),
+		Payload: goworker.Payload{
+			Class: "GoFlow",
+			Args: []interface{}{
+				flowName, request.RequestID, string(request.Body),
+				request.Header, request.RawQuery, request.Query, ResumeRequest,
+			},
 		},
 	})
 }
@@ -132,8 +203,8 @@ func (fRuntime *FlowRuntime) SetWorkerConfig() {
 	for flowName, _ := range fRuntime.Flows {
 		queues = append(queues,
 			fRuntime.requestQueueId(flowName),
-			fRuntime.partialRequestQueueId(flowName),
-			fRuntime.newRequestQueueId(flowName),
+			fRuntime.internalRequestQueueId(flowName),
+			fRuntime.internalRequestQueueId(flowName),
 		)
 	}
 	fRuntime.settings = goworker.WorkerSettings{
@@ -219,10 +290,13 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 
 func (fRuntime *FlowRuntime) EnqueuePartialRequest(pr *runtime.Request) error {
 	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.partialRequestQueueId(pr.FlowName),
+		Queue: fRuntime.internalRequestQueueId(pr.FlowName),
 		Payload: goworker.Payload{
 			Class: "GoFlow",
-			Args:  []interface{}{pr.FlowName, pr.RequestID, string(pr.Body), pr.Header, pr.RawQuery, pr.Query},
+			Args: []interface{}{
+				pr.FlowName, pr.RequestID, string(pr.Body),
+				pr.Header, pr.RawQuery, pr.Query, PartialRequest,
+			},
 		},
 	})
 }
@@ -232,20 +306,22 @@ func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) er
 	var err error
 
 	switch {
-	case isPartialRequest(queue):
+	case isInternalRequest(queue):
+		if len(args) != 7 {
+			fRuntime.Logger.Log("invalid number of argument received")
+			return fmt.Errorf("invalid number of argument received")
+		}
 		request, err := makeRequestFromArgs(args...)
 		if err != nil {
 			fRuntime.Logger.Log(err.Error())
 			return err
 		}
-		err = fRuntime.handlePartialRequest(request)
-	case isNewRequest(queue):
-		request, err := makeRequestFromArgs(args...)
-		if err != nil {
-			fRuntime.Logger.Log(err.Error())
-			return err
+		requestType, ok := args[6].(string)
+		if !ok {
+			fRuntime.Logger.Log(fmt.Sprintf("failed to load requestType from args %v", args[6]))
+			return fmt.Errorf("failed to load requestType from args %v", args[6])
 		}
-		err = fRuntime.handleNewRequest(request)
+		err = fRuntime.handleRequest(request, requestType)
 	default:
 		request := &runtime.Request{}
 		body, ok := args[0].(string)
@@ -258,6 +334,28 @@ func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) er
 		err = fRuntime.handleNewRequest(request)
 	}
 
+	if err != nil {
+		fRuntime.Logger.Log(err.Error())
+	}
+	return err
+}
+
+func (fRuntime *FlowRuntime) handleRequest(request *runtime.Request, requestType string) error {
+	var err error
+	switch requestType {
+	case PartialRequest:
+		err = fRuntime.handlePartialRequest(request)
+	case NewRequest:
+		err = fRuntime.handleNewRequest(request)
+	case PauseRequest:
+		err = fRuntime.handlePauseRequest(request)
+	case ResumeRequest:
+		err = fRuntime.handleResumeRequest(request)
+	case StopRequest:
+		err = fRuntime.handleStopRequest(request)
+	default:
+		return fmt.Errorf("invalid request %v received with type %s", request, requestType)
+	}
 	return err
 }
 
@@ -297,12 +395,56 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 	return nil
 }
 
-func (fRuntime *FlowRuntime) partialRequestQueueId(flowName string) string {
-	return fmt.Sprintf("%s:%s", PartialRequestQueueInitial, flowName)
+func (fRuntime *FlowRuntime) handlePauseRequest(request *runtime.Request) error {
+	executor, err := fRuntime.CreateExecutor(request)
+	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be paused. error: %v", request.RequestID, err))
+		return fmt.Errorf("request %s failed to be paused. error: %v", request.RequestID, err.Error())
+	}
+	response := &runtime.Response{}
+	response.RequestID = request.RequestID
+	err = handler.PauseFlowHandler(response, request, executor)
+	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be paused. error: %v", request.RequestID, err.Error()))
+		return fmt.Errorf("request %s failed to be paused. error: %v", request.RequestID, err.Error())
+	}
+	return nil
 }
 
-func (fRuntime *FlowRuntime) newRequestQueueId(flowName string) string {
-	return fmt.Sprintf("%s:%s", NewRequestQueueInitial, flowName)
+func (fRuntime *FlowRuntime) handleResumeRequest(request *runtime.Request) error {
+	executor, err := fRuntime.CreateExecutor(request)
+	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be resumed. error: %v", request.RequestID, err.Error()))
+		return fmt.Errorf("request %s failed to be resumed. error: %v", request.RequestID, err.Error())
+	}
+	response := &runtime.Response{}
+	response.RequestID = request.RequestID
+	err = handler.ResumeFlowHandler(response, request, executor)
+	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be resumed. error: %v", request.RequestID, err.Error()))
+		return fmt.Errorf("request %s failed to be resumed. error: %v", request.RequestID, err.Error())
+	}
+	return nil
+}
+
+func (fRuntime *FlowRuntime) handleStopRequest(request *runtime.Request) error {
+	executor, err := fRuntime.CreateExecutor(request)
+	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be stopped. error: %v", request.RequestID, err.Error()))
+		return fmt.Errorf("request %s failed to be stopped. error: %v", request.RequestID, err.Error())
+	}
+	response := &runtime.Response{}
+	response.RequestID = request.RequestID
+	err = handler.StopFlowHandler(response, request, executor)
+	if err != nil {
+		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be stopped. error: %v", request.RequestID, err.Error()))
+		return fmt.Errorf("request %s failed to be stopped. error: %v", request.RequestID, err.Error())
+	}
+	return nil
+}
+
+func (fRuntime *FlowRuntime) internalRequestQueueId(flowName string) string {
+	return fmt.Sprintf("%s:%s", InternalRequestQueueInitial, flowName)
 }
 
 func (fRuntime *FlowRuntime) requestQueueId(flowName string) string {
@@ -394,12 +536,8 @@ func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
 	return request, nil
 }
 
-func isPartialRequest(queue string) bool {
-	return strings.HasPrefix(queue, PartialRequestQueueInitial)
-}
-
-func isNewRequest(queue string) bool {
-	return strings.HasPrefix(queue, NewRequestQueueInitial)
+func isInternalRequest(queue string) bool {
+	return strings.HasPrefix(queue, InternalRequestQueueInitial)
 }
 
 func getFlowDefinition(handler FlowDefinitionHandler) (string, error) {
