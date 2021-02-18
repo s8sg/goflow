@@ -253,7 +253,7 @@ func KycImageValidationDag() *flow.Dag {
     branches = dag.ConditionalBranch("handle-face-detect-response", ["pass", "fail"], func(response []byte) []string {
         response := ParseFaceDetectResponse(response)
         status := []string{"failure"}
-        if response.success { status[0] = "success" }
+        if response.success { status[0] = "pass" }
         return status
     })
     // On the pass branch we are performing the `face-match`
