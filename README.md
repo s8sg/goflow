@@ -250,14 +250,13 @@ func KycImageValidationDag() *flow.Dag {
     dag.Node("verify-url").Apply("verify-image-url", s3DocExists)
     dag.Node("face-detect").Apply("face-detect", detectFace)
     // here face match happen only when face-detect is success
-    branches = dag.ConditionalBranch("handle-face-detect-response", ["pass", "fail"], func(response []byte) []string {
+    branches = dag.ConditionalBranch("handle-face-detect-response", []string{"pass"}, func(response []byte) []string {
         response := ParseFaceDetectResponse(response)
-        status := []string{"failure"}
-        if response.success { status[0] = "pass" }
-        return status
+        if response[0] == "pass" { return []string{"pass"}  }
+        return []string{}
     })
     // On the pass branch we are performing the `face-match`
-    // We are keeping fail branch empty as no ops are needed if failed
+    // As defined condition `pass` is not matched execution of next node `generate-result` is continued
     branches["pass"].Node("face-match").Apply("face-match", matchFace)
   
     dag.Node("generate-result", generateResult)
@@ -268,6 +267,34 @@ func KycImageValidationDag() *flow.Dag {
 }
 ```
 ![Conditional](doc/goflow-conditional-branching.jpg)
+
+You can also have multiple conditional branch in a workflow and different nodes corresponding to each branch
+
+Below is the updated example with two conditional Branches where we are trying to call face-match or create-user based on response from previous node
+```go
+func KycImageValidationDag() *flow.Dag {
+    dag := flow.NewDag()
+    dag.Node("verify-url").Apply("verify-image-url", s3DocExists)
+    dag.Node("face-detect").Apply("face-detect", detectFace)
+    // here face match happen only when face-detect is success
+    // otherwise create-user is called
+    branches = dag.ConditionalBranch("handle-face-detect-response", []string{"pass", "fail"}, func(response []byte) []string {
+        response := ParseFaceDetectResponse(response)
+        if response[0] == "pass" { return []string{"pass"}  }
+        return []string{"fail"}
+    })
+    // On the pass branch we are performing the `face-match`
+    branches["pass"].Node("face-match").Apply("face-match", matchFace)
+    // on the fail branch we are performing `create-user`
+    branches["fail"].Node("create-user").Apply("create-user", createUser)
+  
+    dag.Node("generate-result", generateResult)
+    dag.Edge("verify-url", "face-detect")
+    dag.Edge("face-detect", "handle-face-detect-response")
+    dag.Edge("handle-face-detect-response", "generate-result")
+    return dag
+}
+```
 
 ### Foreach Branching
 Foreach branching allows user to iteratively perform a certain set of task for a range of values
