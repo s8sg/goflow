@@ -256,7 +256,7 @@ func KycImageValidationDag() *flow.Dag {
         return []string{}
     })
     // On the pass branch we are performing the `face-match`
-    // We are not keeping any other branch empty as no ops are needed
+    // As defined condition `pass` is not matched execution of next node `generate-result` is continued
     branches["pass"].Node("face-match").Apply("face-match", matchFace)
   
     dag.Node("generate-result", generateResult)
