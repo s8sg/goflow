@@ -4,20 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/benmanns/goworker"
+	"github.com/adjust/rmq/v3"
 	"github.com/faasflow/runtime"
 	"github.com/faasflow/runtime/controller/handler"
-	sdk "github.com/faasflow/sdk"
+	"github.com/faasflow/sdk"
 	"github.com/faasflow/sdk/executor"
 	"github.com/faasflow/sdk/exporter"
 	"github.com/jasonlvhit/gocron"
 	"github.com/rs/xid"
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
-	redis "gopkg.in/redis.v5"
+	"gopkg.in/redis.v5"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -37,15 +36,26 @@ type FlowRuntime struct {
 	EnableMonitoring        bool
 
 	eventHandler sdk.EventHandler
-	settings     goworker.WorkerSettings
-	srv          *http.Server
-	rdb          *redis.Client
+
+	taskQueues map[string]rmq.Queue
+	srv        *http.Server
+	rdb        *redis.Client
 }
 
 type Worker struct {
-	ID          string   `json: id`
-	Flows       []string `json: flows`
-	Concurrency int      `json: concurrency`
+	ID          string   `json:"id"`
+	Flows       []string `json:"flows"`
+	Concurrency int      `json:"concurrency"`
+}
+
+type Task struct {
+	FlowName    string              `json:"flow_name"`
+	RequestID   string              `json:"request_id"`
+	Body        string              `json:"body"`
+	Header      map[string][]string `json:"header"`
+	RawQuery    string              `json:"raw_query"`
+	Query       map[string][]string `json:"query"`
+	RequestType string              `json:"request_type"`
 }
 
 const (
@@ -73,13 +83,13 @@ func (fRuntime *FlowRuntime) Init() error {
 
 	fRuntime.stateStore, err = initStateStore(fRuntime.RedisURL)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize the StateStore, %v", err)
+		return fmt.Errorf("failed to initialize the StateStore, %v", err)
 	}
 
 	if fRuntime.DataStore == nil {
 		fRuntime.DataStore, err = initDataStore(fRuntime.RedisURL)
 		if err != nil {
-			return fmt.Errorf("Failed to initialize the StateStore, %v", err)
+			return fmt.Errorf("failed to initialize the StateStore, %v", err)
 		}
 	}
 
@@ -110,114 +120,110 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 		Logger:                  fRuntime.Logger,
 		Runtime:                 fRuntime,
 	}
-	error := ex.Init(req)
-	return ex, error
+	err := ex.Init(req)
+	return ex, err
 }
 
 func (fRuntime *FlowRuntime) Execute(flowName string, request *runtime.Request) error {
-	settings := goworker.WorkerSettings{
-		URI:         "redis://" + fRuntime.RedisURL + "/",
-		Connections: 10,
-		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
-		UseNumber:   true,
-		Namespace:   "goflow:",
+
+	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
-	goworker.SetSettings(settings)
-	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.internalRequestQueueId(flowName),
-		Payload: goworker.Payload{
-			Class: "GoFlow",
-			Args: []interface{}{
-				flowName, request.RequestID, string(request.Body),
-				request.Header, request.RawQuery, request.Query, NewRequest,
-			},
-		},
+	taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
+	if err != nil {
+		return fmt.Errorf("failed to get queue, error %v", err)
+	}
+
+	data, _ := json.Marshal(&Task{
+		FlowName:    flowName,
+		RequestID:   request.RequestID,
+		Body:        string(request.Body),
+		Header:      request.Header,
+		RawQuery:    request.RawQuery,
+		Query:       request.Query,
+		RequestType: NewRequest,
 	})
+	err = taskQueue.PublishBytes(data)
+	if err != nil {
+		return fmt.Errorf("failed to publish task, error %v", err)
+	}
+	return nil
 }
 
 func (fRuntime *FlowRuntime) Pause(flowName string, request *runtime.Request) error {
-	settings := goworker.WorkerSettings{
-		URI:         "redis://" + fRuntime.RedisURL + "/",
-		Connections: 10,
-		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
-		UseNumber:   true,
-		Namespace:   "goflow:",
+	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
-	goworker.SetSettings(settings)
-	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.internalRequestQueueId(flowName),
-		Payload: goworker.Payload{
-			Class: "GoFlow",
-			Args: []interface{}{
-				flowName, request.RequestID, string(request.Body),
-				request.Header, request.RawQuery, request.Query, PauseRequest,
-			},
-		},
+	taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
+	if err != nil {
+		return fmt.Errorf("failed to get queue, error %v", err)
+	}
+	data, _ := json.Marshal(&Task{
+		FlowName:    flowName,
+		RequestID:   request.RequestID,
+		Body:        string(request.Body),
+		Header:      request.Header,
+		RawQuery:    request.RawQuery,
+		Query:       request.Query,
+		RequestType: PauseRequest,
 	})
+	err = taskQueue.PublishBytes(data)
+	if err != nil {
+		return fmt.Errorf("failed to publish task, error %v", err)
+	}
+	return nil
 }
 
 func (fRuntime *FlowRuntime) Stop(flowName string, request *runtime.Request) error {
-	settings := goworker.WorkerSettings{
-		URI:         "redis://" + fRuntime.RedisURL + "/",
-		Connections: 10,
-		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
-		UseNumber:   true,
-		Namespace:   "goflow:",
+	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
-	goworker.SetSettings(settings)
-	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.internalRequestQueueId(flowName),
-		Payload: goworker.Payload{
-			Class: "GoFlow",
-			Args: []interface{}{
-				flowName, request.RequestID, string(request.Body),
-				request.Header, request.RawQuery, request.Query, StopRequest,
-			},
-		},
+	taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
+	if err != nil {
+		return fmt.Errorf("failed to get queue, error %v", err)
+	}
+	data, _ := json.Marshal(&Task{
+		FlowName:    flowName,
+		RequestID:   request.RequestID,
+		Body:        string(request.Body),
+		Header:      request.Header,
+		RawQuery:    request.RawQuery,
+		Query:       request.Query,
+		RequestType: StopRequest,
 	})
+	err = taskQueue.PublishBytes(data)
+	if err != nil {
+		return fmt.Errorf("failed to publish task, error %v", err)
+	}
+	return nil
 }
 
 func (fRuntime *FlowRuntime) Resume(flowName string, request *runtime.Request) error {
-	settings := goworker.WorkerSettings{
-		URI:         "redis://" + fRuntime.RedisURL + "/",
-		Connections: 10,
-		Queues:      []string{fRuntime.internalRequestQueueId(flowName)},
-		UseNumber:   true,
-		Namespace:   "goflow:",
+	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
-	goworker.SetSettings(settings)
-	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.internalRequestQueueId(flowName),
-		Payload: goworker.Payload{
-			Class: "GoFlow",
-			Args: []interface{}{
-				flowName, request.RequestID, string(request.Body),
-				request.Header, request.RawQuery, request.Query, ResumeRequest,
-			},
-		},
+	taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
+	if err != nil {
+		return fmt.Errorf("failed to get queue, error %v", err)
+	}
+	data, _ := json.Marshal(&Task{
+		FlowName:    flowName,
+		RequestID:   request.RequestID,
+		Body:        string(request.Body),
+		Header:      request.Header,
+		RawQuery:    request.RawQuery,
+		Query:       request.Query,
+		RequestType: ResumeRequest,
 	})
-}
-
-func (fRuntime *FlowRuntime) SetWorkerConfig() {
-	var queues []string
-	for flowName, _ := range fRuntime.Flows {
-		queues = append(queues,
-			fRuntime.requestQueueId(flowName),
-			fRuntime.internalRequestQueueId(flowName),
-			fRuntime.internalRequestQueueId(flowName),
-		)
+	err = taskQueue.PublishBytes(data)
+	if err != nil {
+		return fmt.Errorf("failed to publish task, error %v", err)
 	}
-	fRuntime.settings = goworker.WorkerSettings{
-		URI:            "redis://" + fRuntime.RedisURL + "/",
-		Connections:    100,
-		Queues:         queues,
-		UseNumber:      true,
-		ExitOnComplete: false,
-		Concurrency:    fRuntime.Concurrency,
-		Namespace:      "goflow:",
-		Interval:       1.0,
-	}
-	goworker.SetSettings(fRuntime.settings)
+	return nil
 }
 
 // StartServer starts listening for new request
@@ -242,9 +248,37 @@ func (fRuntime *FlowRuntime) StopServer() error {
 }
 
 // StartQueueWorker starts listening for request in queue
-func (fRuntime *FlowRuntime) StartQueueWorker() error {
-	goworker.Register("GoFlow", fRuntime.queueReceiver)
-	return goworker.Work()
+func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
+	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate connection, error %v", err)
+	}
+
+	fRuntime.taskQueues = make(map[string]rmq.Queue)
+	for flowName := range fRuntime.Flows {
+		index := 0
+		for index < fRuntime.Concurrency {
+			taskQueue, err := connection.OpenQueue(fRuntime.requestQueueId(flowName))
+			if err != nil {
+				return fmt.Errorf("failed to get queue, error %v", err)
+			}
+			err = taskQueue.StartConsuming(10, time.Second)
+			if err != nil {
+				return fmt.Errorf("failed to start consumer, error %v", err)
+			}
+
+			name, err := taskQueue.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
+			if err != nil {
+				return fmt.Errorf("failed to add consumer, error %v", err)
+			}
+			fRuntime.Logger.Log("Started consumer " + name)
+			fRuntime.taskQueues[flowName] = taskQueue
+			index++
+		}
+	}
+
+	err = <-errorChan
+	return err
 }
 
 // StartRuntime starts the runtime
@@ -256,9 +290,9 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	}
 	// Get the flow details for each flow
 	flowDetails := make(map[string]string)
-	for flowID, handler := range fRuntime.Flows {
+	for flowID, defHandler := range fRuntime.Flows {
 		worker.Flows = append(worker.Flows, flowID)
-		dag, err := getFlowDefinition(handler)
+		dag, err := getFlowDefinition(defHandler)
 		if err != nil {
 			return fmt.Errorf("failed to strat runtime, dag export failed, error %v", err)
 		}
@@ -289,55 +323,43 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 }
 
 func (fRuntime *FlowRuntime) EnqueuePartialRequest(pr *runtime.Request) error {
-	return goworker.Enqueue(&goworker.Job{
-		Queue: fRuntime.internalRequestQueueId(pr.FlowName),
-		Payload: goworker.Payload{
-			Class: "GoFlow",
-			Args: []interface{}{
-				pr.FlowName, pr.RequestID, string(pr.Body),
-				pr.Header, pr.RawQuery, pr.Query, PartialRequest,
-			},
-		},
+	data, _ := json.Marshal(&Task{
+		FlowName:    pr.FlowName,
+		RequestID:   pr.RequestID,
+		Body:        string(pr.Body),
+		Header:      pr.Header,
+		RawQuery:    pr.RawQuery,
+		Query:       pr.Query,
+		RequestType: PartialRequest,
 	})
+	err := fRuntime.taskQueues[pr.FlowName].PublishBytes(data)
+	if err != nil {
+		return fmt.Errorf("failed to publish task, error %v", err)
+	}
+	return nil
 }
 
-func (fRuntime *FlowRuntime) queueReceiver(queue string, args ...interface{}) error {
-	fRuntime.Logger.Log(fmt.Sprintf("Request received by worker at queue %v", queue))
-	var err error
-
-	switch {
-	case isInternalRequest(queue):
-		if len(args) != 7 {
-			fRuntime.Logger.Log("invalid number of argument received")
-			return fmt.Errorf("invalid number of argument received")
-		}
-		request, err := makeRequestFromArgs(args...)
-		if err != nil {
-			fRuntime.Logger.Log(err.Error())
-			return err
-		}
-		requestType, ok := args[6].(string)
-		if !ok {
-			fRuntime.Logger.Log(fmt.Sprintf("failed to load requestType from args %v", args[6]))
-			return fmt.Errorf("failed to load requestType from args %v", args[6])
-		}
-		err = fRuntime.handleRequest(request, requestType)
-	default:
+// Consume messages from queue
+func (fRuntime *FlowRuntime) Consume(delivery rmq.Delivery) {
+	var task Task
+	if err := json.Unmarshal([]byte(delivery.Payload()), &task); err != nil {
+		/* TODO: Allow to directly execute flow
 		request := &runtime.Request{}
-		body, ok := args[0].(string)
-		if !ok {
-			fRuntime.Logger.Log(fmt.Sprintf("failed to load request body as string from %v", args[0]))
-			return fmt.Errorf("failed to load request body as string from %v", args[0])
-		}
-		request.Body = []byte(body)
-		request.FlowName = queue
+		request.Body = []byte(delivery.Payload())
 		err = fRuntime.handleNewRequest(request)
-	}
-
-	if err != nil {
+		*/
 		fRuntime.Logger.Log(err.Error())
+		if err := delivery.Reject(); err != nil {
+			fRuntime.Logger.Log("failed to reject delivery")
+			return
+		}
+	} else {
+		err = fRuntime.handleRequest(makeRequestFromTask(task), task.RequestType)
+		if err := delivery.Reject(); err != nil {
+			fRuntime.Logger.Log("failed to reject delivery")
+			return
+		}
 	}
-	return err
 }
 
 func (fRuntime *FlowRuntime) handleRequest(request *runtime.Request, requestType string) error {
@@ -360,7 +382,7 @@ func (fRuntime *FlowRuntime) handleRequest(request *runtime.Request, requestType
 }
 
 func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
-	executor, err := fRuntime.CreateExecutor(request)
+	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
 		return fmt.Errorf("failed to execute request " + request.RequestID + ", error: " + err.Error())
 	}
@@ -369,7 +391,7 @@ func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
 	response.RequestID = request.RequestID
 	response.Header = make(map[string][]string)
 
-	err = handler.ExecuteFlowHandler(response, request, executor)
+	err = handler.ExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		return fmt.Errorf("equest failed to be processed. error: " + err.Error())
 	}
@@ -378,7 +400,7 @@ func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
 }
 
 func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) error {
-	executor, err := fRuntime.CreateExecutor(request)
+	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to execute request, error: %v", request.RequestID, err))
 		return fmt.Errorf("failed to execute request " + request.RequestID + ", error: " + err.Error())
@@ -387,7 +409,7 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 	response.RequestID = request.RequestID
 	response.Header = make(map[string][]string)
 
-	err = handler.PartialExecuteFlowHandler(response, request, executor)
+	err = handler.PartialExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be processed. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request failed to be processed. error: " + err.Error())
@@ -396,14 +418,14 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 }
 
 func (fRuntime *FlowRuntime) handlePauseRequest(request *runtime.Request) error {
-	executor, err := fRuntime.CreateExecutor(request)
+	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be paused. error: %v", request.RequestID, err))
 		return fmt.Errorf("request %s failed to be paused. error: %v", request.RequestID, err.Error())
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.PauseFlowHandler(response, request, executor)
+	err = handler.PauseFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be paused. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be paused. error: %v", request.RequestID, err.Error())
@@ -412,14 +434,14 @@ func (fRuntime *FlowRuntime) handlePauseRequest(request *runtime.Request) error 
 }
 
 func (fRuntime *FlowRuntime) handleResumeRequest(request *runtime.Request) error {
-	executor, err := fRuntime.CreateExecutor(request)
+	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be resumed. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be resumed. error: %v", request.RequestID, err.Error())
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.ResumeFlowHandler(response, request, executor)
+	err = handler.ResumeFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be resumed. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be resumed. error: %v", request.RequestID, err.Error())
@@ -428,14 +450,14 @@ func (fRuntime *FlowRuntime) handleResumeRequest(request *runtime.Request) error
 }
 
 func (fRuntime *FlowRuntime) handleStopRequest(request *runtime.Request) error {
-	executor, err := fRuntime.CreateExecutor(request)
+	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be stopped. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be stopped. error: %v", request.RequestID, err.Error())
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.StopFlowHandler(response, request, executor)
+	err = handler.StopFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[Request `%s`] failed to be stopped. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be stopped. error: %v", request.RequestID, err.Error())
@@ -473,71 +495,16 @@ func marshalWorker(worker *Worker) string {
 	return string(jsonDef)
 }
 
-func makeRequestFromArgs(args ...interface{}) (*runtime.Request, error) {
-	request := &runtime.Request{}
-
-	if args[0] != nil {
-		flowName, ok := args[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to load flowName from arguments %v", args[0])
-		}
-		request.FlowName = flowName
+func makeRequestFromTask(task Task) *runtime.Request {
+	request := &runtime.Request{
+		FlowName:  task.FlowName,
+		RequestID: task.RequestID,
+		Body:      []byte(task.Body),
+		Header:    task.Header,
+		RawQuery:  task.RawQuery,
+		Query:     task.Query,
 	}
-
-	if args[1] != nil {
-		requestId, ok := args[1].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to load requestId from arguments %v", args[1])
-		}
-		request.RequestID = requestId
-	}
-
-	if args[2] != nil {
-		body, ok := args[2].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to load body from arguments %v", args[2])
-		}
-		request.Body = []byte(body)
-	}
-
-	request.Header = make(map[string][]string)
-	if args[3] != nil {
-		header, ok := args[3].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("failed to load header from arguments %v", args[3])
-		}
-		for key, value := range header {
-			headerValue := value.([]interface{})
-			request.Header[key] = []string{headerValue[0].(string)}
-		}
-	}
-
-	if args[4] != nil {
-		rawQuery, ok := args[4].(string)
-		if !ok {
-
-			return nil, fmt.Errorf("failed to load raw-query from arguments %v", args[4])
-		}
-		request.RawQuery = rawQuery
-	}
-
-	request.Query = make(map[string][]string)
-	if args[5] != nil {
-		query, ok := args[5].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("failed to load query from arguments %v", args[5])
-		}
-		for key, value := range query {
-			queryValue := value.([]interface{})
-			request.Query[key] = []string{queryValue[0].(string)}
-		}
-	}
-
-	return request, nil
-}
-
-func isInternalRequest(queue string) bool {
-	return strings.HasPrefix(queue, InternalRequestQueueInitial)
+	return request
 }
 
 func getFlowDefinition(handler FlowDefinitionHandler) (string, error) {

@@ -53,7 +53,7 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 
 	err := fs.runtime.Execute(flowName, request)
 	if err != nil {
-		fmt.Errorf("failed to execute request, %v", err)
+		return fmt.Errorf("failed to execute request, %v", err)
 	}
 
 	return nil
@@ -81,7 +81,7 @@ func (fs *FlowService) Pause(flowName string, requestId string) error {
 
 	err := fs.runtime.Pause(flowName, request)
 	if err != nil {
-		fmt.Errorf("failed to pause request, %v", err)
+		return fmt.Errorf("failed to pause request, %v", err)
 	}
 
 	return nil
@@ -109,7 +109,7 @@ func (fs *FlowService) Resume(flowName string, requestId string) error {
 
 	err := fs.runtime.Resume(flowName, request)
 	if err != nil {
-		fmt.Errorf("failed to resume request, %v", err)
+		return fmt.Errorf("failed to resume request, %v", err)
 	}
 
 	return nil
@@ -137,7 +137,7 @@ func (fs *FlowService) Stop(flowName string, requestId string) error {
 
 	err := fs.runtime.Stop(flowName, request)
 	if err != nil {
-		fmt.Errorf("failed to stop request, %v", err)
+		return fmt.Errorf("failed to stop request, %v", err)
 	}
 
 	return nil
@@ -271,7 +271,6 @@ func (fs *FlowService) initRuntime() error {
 	if err != nil {
 		return err
 	}
-	fs.runtime.SetWorkerConfig()
 	return nil
 }
 
@@ -281,7 +280,7 @@ func (fs *FlowService) runtimeWorker(errorChan chan error) {
 }
 
 func (fs *FlowService) queueWorker(errorChan chan error) {
-	err := fs.runtime.StartQueueWorker()
+	err := fs.runtime.StartQueueWorker(errorChan)
 	errorChan <- fmt.Errorf("worker has stopped, error: %v", err)
 }
 
