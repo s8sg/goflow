@@ -258,16 +258,36 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 	for flowName := range fRuntime.Flows {
 		index := 0
 		for index < fRuntime.Concurrency {
-			taskQueue, err := connection.OpenQueue(fRuntime.requestQueueId(flowName))
+			taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
 			if err != nil {
 				return fmt.Errorf("failed to get queue, error %v", err)
 			}
+			pushQ1, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-q1")
+			if err != nil {
+				return fmt.Errorf("failed to get queue, error %v", err)
+			}
+			pushQ2, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-q2")
+			if err != nil {
+				return fmt.Errorf("failed to get queue, error %v", err)
+			}
+			taskQueue.SetPushQueue(pushQ1)
+			pushQ1.SetPushQueue(pushQ2)
 			err = taskQueue.StartConsuming(10, time.Second)
 			if err != nil {
 				return fmt.Errorf("failed to start consumer, error %v", err)
 			}
 
 			name, err := taskQueue.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
+			if err != nil {
+				return fmt.Errorf("failed to add consumer, error %v", err)
+			}
+			fRuntime.Logger.Log("Started consumer " + name)
+			name, err = pushQ1.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
+			if err != nil {
+				return fmt.Errorf("failed to add consumer, error %v", err)
+			}
+			fRuntime.Logger.Log("Started consumer " + name)
+			name, err = pushQ2.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
 			if err != nil {
 				return fmt.Errorf("failed to add consumer, error %v", err)
 			}
@@ -345,15 +365,15 @@ func (fRuntime *FlowRuntime) Consume(delivery rmq.Delivery) {
 	if err := json.Unmarshal([]byte(delivery.Payload()), &task); err != nil {
 		// TODO: Allow to directly execute flow
 		fRuntime.Logger.Log("Rejecting task for failure, error " + err.Error())
-		if err := delivery.Reject(); err != nil {
-			fRuntime.Logger.Log("failed to reject delivery, error " + err.Error())
+		if err := delivery.Push(); err != nil {
+			fRuntime.Logger.Log("failed to push delivery, error " + err.Error())
 			return
 		}
 	} else {
 		if err = fRuntime.handleRequest(makeRequestFromTask(task), task.RequestType); err != nil {
 			fRuntime.Logger.Log("Rejecting task for failure, error " + err.Error())
-			if err := delivery.Reject(); err != nil {
-				fRuntime.Logger.Log("failed to reject delivery, error " + err.Error())
+			if err := delivery.Push(); err != nil {
+				fRuntime.Logger.Log("failed to push delivery, error " + err.Error())
 				return
 			}
 		}

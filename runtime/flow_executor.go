@@ -50,7 +50,6 @@ func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 		faasHandler := fe.EventHandler.(*eventhandler.GoFlowEventHandler)
 		faasHandler.Tracer.ExtendReqSpan(fe.reqID, faasHandler.CurrentNodeID, "", request)
 	}
-	fmt.Println(request.Header)
 	err = fe.Runtime.EnqueuePartialRequest(request)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue request, error %v", err)
