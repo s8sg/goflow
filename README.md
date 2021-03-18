@@ -96,7 +96,6 @@ fs.Register("deleteUser", DefineDeleteUserFlow)
 
 ## Execute It
 
-#### Using Client
 Using the client you can requests the flow directly. 
 The requests are always async and gets queued for the worker to pick up
 ```go
@@ -107,15 +106,6 @@ fs.Execute("myflow", &goflow.Request{
     Body: []byte("hallo")
 })
 ```
-
-#### Using Redis
-For testing, it is helpful to use the redis-cli program to insert jobs onto the Redis queue:
-```go
-redis-cli -r 100 RPUSH goflow:queue:myflow '{"class":"GoFlow","args":["hallo"]}'
-```
-this will insert 100 jobs for the `GoFlow` worker onto the `myflow` queue
-> Currently redis queue based job only take one argument as string
-
 <br />
 
 ## Creating More Complex DAG
