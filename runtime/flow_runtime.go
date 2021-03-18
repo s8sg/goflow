@@ -343,20 +343,24 @@ func (fRuntime *FlowRuntime) EnqueuePartialRequest(pr *runtime.Request) error {
 func (fRuntime *FlowRuntime) Consume(delivery rmq.Delivery) {
 	var task Task
 	if err := json.Unmarshal([]byte(delivery.Payload()), &task); err != nil {
-		/* TODO: Allow to directly execute flow
-		request := &runtime.Request{}
-		request.Body = []byte(delivery.Payload())
-		err = fRuntime.handleNewRequest(request)
-		*/
-		fRuntime.Logger.Log(err.Error())
+		// TODO: Allow to directly execute flow
+		fRuntime.Logger.Log("Rejecting task for failure, error " + err.Error())
 		if err := delivery.Reject(); err != nil {
-			fRuntime.Logger.Log("failed to reject delivery")
+			fRuntime.Logger.Log("failed to reject delivery, error " + err.Error())
 			return
 		}
 	} else {
-		err = fRuntime.handleRequest(makeRequestFromTask(task), task.RequestType)
-		if err := delivery.Reject(); err != nil {
-			fRuntime.Logger.Log("failed to reject delivery")
+		if err = fRuntime.handleRequest(makeRequestFromTask(task), task.RequestType); err != nil {
+			fRuntime.Logger.Log("Rejecting task for failure, error " + err.Error())
+			if err := delivery.Reject(); err != nil {
+				fRuntime.Logger.Log("failed to reject delivery, error " + err.Error())
+				return
+			}
+		}
+		fRuntime.Logger.Log("Acknowledging task")
+		err = delivery.Ack()
+		if err != nil {
+			fRuntime.Logger.Log("failed to acknowledge delivery, error " + err.Error())
 			return
 		}
 	}
