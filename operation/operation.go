@@ -1,11 +1,7 @@
-package flow
+package operation
 
 import (
 	"fmt"
-)
-
-var (
-	BLANK_MODIFIER = func(data []byte) ([]byte, error) { return data, nil }
 )
 
 // FuncErrorHandler the error handler for OnFailure() options
@@ -14,7 +10,7 @@ type FuncErrorHandler func(error) error
 // Modifier definition for Modify() call
 type Modifier func([]byte, map[string][]string) ([]byte, error)
 
-type ServiceOperation struct {
+type GoFlowOperation struct {
 	Id      string              // ID
 	Mod     Modifier            // Modifier
 	Options map[string][]string // The option as a input to workload
@@ -22,16 +18,7 @@ type ServiceOperation struct {
 	FailureHandler FuncErrorHandler // The Failure handler of the operation
 }
 
-// createWorkload Create a function with execution name
-func createWorkload(id string, mod Modifier) *ServiceOperation {
-	operation := &ServiceOperation{}
-	operation.Mod = mod
-	operation.Id = id
-	operation.Options = make(map[string][]string)
-	return operation
-}
-
-func (operation *ServiceOperation) addOptions(key string, value string) {
+func (operation *GoFlowOperation) addOptions(key string, value string) {
 	array, ok := operation.Options[key]
 	if !ok {
 		operation.Options[key] = make([]string, 1)
@@ -41,24 +28,24 @@ func (operation *ServiceOperation) addOptions(key string, value string) {
 	}
 }
 
-func (operation *ServiceOperation) addFailureHandler(handler FuncErrorHandler) {
+func (operation *GoFlowOperation) AddFailureHandler(handler FuncErrorHandler) {
 	operation.FailureHandler = handler
 }
 
-func (operation *ServiceOperation) GetOptions() map[string][]string {
+func (operation *GoFlowOperation) GetOptions() map[string][]string {
 	return operation.Options
 }
 
-func (operation *ServiceOperation) GetId() string {
+func (operation *GoFlowOperation) GetId() string {
 	return operation.Id
 }
 
-func (operation *ServiceOperation) Encode() []byte {
+func (operation *GoFlowOperation) Encode() []byte {
 	return []byte("")
 }
 
 // executeWorkload executes a function call
-func executeWorkload(operation *ServiceOperation, data []byte) ([]byte, error) {
+func executeWorkload(operation *GoFlowOperation, data []byte) ([]byte, error) {
 	var err error
 	var result []byte
 
@@ -68,7 +55,7 @@ func executeWorkload(operation *ServiceOperation, data []byte) ([]byte, error) {
 	return result, err
 }
 
-func (operation *ServiceOperation) Execute(data []byte, option map[string]interface{}) ([]byte, error) {
+func (operation *GoFlowOperation) Execute(data []byte, _ map[string]interface{}) ([]byte, error) {
 	var result []byte
 	var err error
 
@@ -89,7 +76,7 @@ func (operation *ServiceOperation) Execute(data []byte, option map[string]interf
 	return result, nil
 }
 
-func (operation *ServiceOperation) GetProperties() map[string][]string {
+func (operation *GoFlowOperation) GetProperties() map[string][]string {
 
 	result := make(map[string][]string)
 
@@ -113,27 +100,3 @@ func (operation *ServiceOperation) GetProperties() map[string][]string {
 	return result
 }
 
-// Apply adds a new workload to the given vertex
-func (node *Node) Apply(id string, workload Modifier, opts ...Option) *Node {
-
-	newWorkload := createWorkload(id, workload)
-
-	o := &Options{}
-	for _, opt := range opts {
-		o.reset()
-		opt(o)
-		if len(o.option) != 0 {
-			for key, array := range o.option {
-				for _, value := range array {
-					newWorkload.addOptions(key, value)
-				}
-			}
-		}
-		if o.failureHandler != nil {
-			newWorkload.addFailureHandler(o.failureHandler)
-		}
-	}
-
-	node.unode.AddOperation(newWorkload)
-	return node
-}
