@@ -21,6 +21,7 @@ type FlowExecutor struct {
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
+	IsLoggingEnabled		bool
 	partialState            []byte
 	rawRequest              *executor.RawRequest
 	StateStore              sdk.StateStore
@@ -125,7 +126,7 @@ func (fe *FlowExecutor) GetEventHandler() (sdk.EventHandler, error) {
 }
 
 func (fe *FlowExecutor) LoggingEnabled() bool {
-	return true
+	return fe.IsLoggingEnabled
 }
 
 func (fe *FlowExecutor) GetLogger() (sdk.Logger, error) {
