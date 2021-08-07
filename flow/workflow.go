@@ -2,7 +2,7 @@ package flow
 
 import (
 	"fmt"
-	"github.com/faasflow/sdk"
+	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/operation"
 )
 

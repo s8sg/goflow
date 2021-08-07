@@ -1,8 +1,8 @@
 package runtime
 
 import (
-	redisStateStore "github.com/faasflow/faas-flow-redis-statestore"
-	"github.com/faasflow/sdk"
+	redisStateStore "github.com/s8sg/goflow/core/redis-statestore"
+	"github.com/s8sg/goflow/core/sdk"
 )
 
 func initStateStore(redisURI string) (stateStore sdk.StateStore, err error) {

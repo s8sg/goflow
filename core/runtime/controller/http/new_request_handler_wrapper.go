@@ -1,9 +1,10 @@
-package runtime
+package http
 
 import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 
 	runtimepkg "github.com/s8sg/goflow/core/runtime"
 
@@ -14,11 +15,10 @@ import (
 func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimepkg.Response, *runtimepkg.Request, executor.Executor) error) func(http.ResponseWriter, *http.Request, httprouter.Params) {
 	return func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		id := params.ByName("id")
-		flowName := params.ByName("flowName")
 
 		body, err := ioutil.ReadAll(req.Body)
 		if err != nil {
-			handleError(w, fmt.Sprintf("failed to execute request, "+err.Error()))
+			handleError(w, fmt.Sprintf("failed to execute request "+id+" "+err.Error()))
 			return
 		}
 
@@ -37,7 +37,7 @@ func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimep
 		request := &runtimepkg.Request{
 			Body:      body,
 			Header:    req.Header,
-			FlowName:  flowName,
+			FlowName:  getWorkflowNameFromHost(req.Host),
 			RequestID: id,
 			Query:     reqParams,
 			RawQuery:  req.URL.RawQuery,
@@ -45,13 +45,13 @@ func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimep
 
 		ex, err := runtime.CreateExecutor(request)
 		if err != nil {
-			handleError(w, fmt.Sprintf("failed to execute request, "+err.Error()))
+			handleError(w, fmt.Sprintf("failed to execute request "+id+", error: "+err.Error()))
 			return
 		}
 
 		err = handler(response, request, ex)
 		if err != nil {
-			handleError(w, fmt.Sprintf("request failed to be processed, "+err.Error()))
+			handleError(w, fmt.Sprintf("request failed to be processed. error: "+err.Error()))
 			return
 		}
 
@@ -63,4 +63,17 @@ func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimep
 		w.WriteHeader(http.StatusOK)
 		w.Write(response.Body)
 	}
+}
+
+// internal
+
+var re = regexp.MustCompile(`(?m)^[^:.]+\s*`)
+
+// getWorkflowNameFromHostFromHost returns the flow name from env
+func getWorkflowNameFromHost(host string) string {
+	matches := re.FindAllString(host, -1)
+	if matches[0] != "" {
+		return matches[0]
+	}
+	return ""
 }

@@ -3,9 +3,9 @@ package runtime
 import (
 	"bytes"
 	"fmt"
-	"github.com/faasflow/runtime"
-	sdk "github.com/faasflow/sdk"
-	"github.com/faasflow/sdk/executor"
+	"github.com/s8sg/goflow/core/runtime"
+	sdk "github.com/s8sg/goflow/core/sdk"
+	"github.com/s8sg/goflow/core/sdk/executor"
 	"github.com/s8sg/goflow/eventhandler"
 	"github.com/s8sg/goflow/flow"
 	"io/ioutil"

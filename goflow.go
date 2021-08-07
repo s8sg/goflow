@@ -2,8 +2,8 @@ package goflow
 
 import (
 	"fmt"
-	runtimePkg "github.com/faasflow/runtime"
-	"github.com/faasflow/sdk"
+	runtimePkg "github.com/s8sg/goflow/core/runtime"
+	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/runtime"
 	"time"
 )
