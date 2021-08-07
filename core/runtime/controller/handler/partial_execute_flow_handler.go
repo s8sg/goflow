@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"github.com/s8sg/goflow/core/runtime"
 	"github.com/s8sg/goflow/core/sdk/executor"
-	"log"
 )
 
 func PartialExecuteFlowHandler(response *runtime.Response, request *runtime.Request, ex executor.Executor) error {
-	log.Printf("Partially executing flow %s, for id %s\n", request.FlowName, request.RequestID)
 
 	var stateOption executor.ExecutionStateOption
 
