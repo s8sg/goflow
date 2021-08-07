@@ -1,7 +1,5 @@
 package sdk
 
-import ()
-
 type Operation interface {
 	GetId() string
 	Encode() []byte

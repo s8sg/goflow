@@ -14,6 +14,7 @@ type FlowService struct {
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	WorkerConcurrency       int
+	RetryQueueCount         int
 	Flows                   map[string]runtime.FlowDefinitionHandler
 	RequestReadTimeout      time.Duration
 	RequestWriteTimeout     time.Duration
@@ -31,6 +32,16 @@ type Request struct {
 	Query     map[string][]string
 	Header    map[string][]string
 }
+
+const (
+	DefaultTraceUrl           = "localhost:5775"
+	DefaultRedisUrl           = "localhost:6379"
+	DefaultWorkerConcurrency  = 2
+	DefaultWebServerPort      = 8080
+	DefaultReadTimeoutSecond  = 120
+	DefaultWriteTimeoutSecond = 120
+	DefaultRetryQueueCount    = 2
+)
 
 func (fs *FlowService) Execute(flowName string, req *Request) error {
 	if flowName == "" {
@@ -182,6 +193,7 @@ func (fs *FlowService) Start() error {
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
+		RetryQueueCount:         fs.RetryQueueCount,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -209,6 +221,7 @@ func (fs *FlowService) StartServer() error {
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
+		RetryQueueCount:         fs.RetryQueueCount,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -233,6 +246,7 @@ func (fs *FlowService) StartWorker() error {
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
+		RetryQueueCount:         fs.RetryQueueCount,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -247,22 +261,25 @@ func (fs *FlowService) StartWorker() error {
 
 func (fs *FlowService) ConfigureDefault() {
 	if fs.OpenTraceUrl == "" {
-		fs.OpenTraceUrl = "localhost:5775"
+		fs.OpenTraceUrl = DefaultTraceUrl
 	}
 	if fs.RedisURL == "" {
-		fs.RedisURL = "localhost:6379"
+		fs.RedisURL = DefaultRedisUrl
 	}
 	if fs.WorkerConcurrency == 0 {
-		fs.WorkerConcurrency = 2
+		fs.WorkerConcurrency = DefaultWorkerConcurrency
 	}
 	if fs.Port == 0 {
-		fs.Port = 8080
+		fs.Port = DefaultWebServerPort
 	}
 	if fs.RequestReadTimeout == 0 {
-		fs.RequestReadTimeout = 120 * time.Second
+		fs.RequestReadTimeout = DefaultReadTimeoutSecond * time.Second
 	}
 	if fs.RequestWriteTimeout == 0 {
-		fs.RequestWriteTimeout = 120 * time.Second
+		fs.RequestWriteTimeout = DefaultWriteTimeoutSecond * time.Second
+	}
+	if fs.RetryQueueCount == 0 {
+		fs.RetryQueueCount = DefaultRetryQueueCount
 	}
 }
 

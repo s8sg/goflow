@@ -3,10 +3,15 @@ package handler
 import (
 	"fmt"
 	"github.com/s8sg/goflow/core/runtime"
-	"github.com/s8sg/goflow/core/runtime/controller/util"
 	"log"
 
 	"github.com/s8sg/goflow/core/sdk/executor"
+)
+
+const (
+	CallbackUrlHeader   = "X-Faas-Flow-Callback-Url"
+	RequestIdHeader     = "X-Faas-Flow-Reqid"
+	AuthSignatureHeader = "X-Hub-Signature"
 )
 
 func ExecuteFlowHandler(response *runtime.Response, request *runtime.Request, ex executor.Executor) error {
@@ -14,11 +19,11 @@ func ExecuteFlowHandler(response *runtime.Response, request *runtime.Request, ex
 
 	var stateOption executor.ExecutionStateOption
 
-	callbackURL := request.GetHeader(util.CallbackUrlHeader)
+	callbackURL := request.GetHeader(CallbackUrlHeader)
 	rawRequest := &executor.RawRequest{}
 	rawRequest.Data = request.Body
 	rawRequest.Query = request.RawQuery
-	rawRequest.AuthSignature = request.GetHeader(util.AuthSignatureHeader)
+	rawRequest.AuthSignature = request.GetHeader(AuthSignatureHeader)
 	if request.RequestID != "" {
 		rawRequest.RequestId = request.RequestID
 	}
@@ -31,8 +36,8 @@ func ExecuteFlowHandler(response *runtime.Response, request *runtime.Request, ex
 	}
 
 	response.RequestID = flowExecutor.GetReqId()
-	response.SetHeader(util.RequestIdHeader, response.RequestID)
-	response.SetHeader(util.CallbackUrlHeader, callbackURL)
+	response.SetHeader(RequestIdHeader, response.RequestID)
+	response.SetHeader(CallbackUrlHeader, callbackURL)
 	response.Body = resp
 
 	return nil
