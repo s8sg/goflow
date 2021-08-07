@@ -342,7 +342,7 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	if err != nil {
 		return fmt.Errorf("failed to register worker details, %v", err)
 	}
-	gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
+	err = gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
 		var err error
 		err = fRuntime.saveWorkerDetails(worker)
 		if err != nil {
@@ -353,6 +353,10 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 			log.Printf("failed to register worker details, %v", err)
 		}
 	})
+	if err != nil {
+		return fmt.Errorf("failed to start runtime, %v", err)
+	}
+
 	<-gocron.Start()
 
 	return fmt.Errorf("runtime stopped")
