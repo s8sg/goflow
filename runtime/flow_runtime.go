@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/adjust/rmq/v3"
+	"github.com/adjust/rmq/v4"
+	"github.com/jasonlvhit/gocron"
+	"github.com/rs/xid"
 	"github.com/s8sg/goflow/core/runtime"
 	"github.com/s8sg/goflow/core/runtime/controller/handler"
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/core/sdk/executor"
 	"github.com/s8sg/goflow/core/sdk/exporter"
-	"github.com/jasonlvhit/gocron"
-	"github.com/rs/xid"
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
 	"gopkg.in/redis.v5"
@@ -34,6 +34,7 @@ type FlowRuntime struct {
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
+	RetryQueueCount         int
 
 	eventHandler sdk.EventHandler
 
@@ -256,57 +257,58 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 
 	fRuntime.taskQueues = make(map[string]rmq.Queue)
 	for flowName := range fRuntime.Flows {
-		index := 0
-		for index < fRuntime.Concurrency {
-			taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
-			if err != nil {
-				return fmt.Errorf("failed to get queue, error %v", err)
-			}
-			pushQ1, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-q1")
-			if err != nil {
-				return fmt.Errorf("failed to get queue, error %v", err)
-			}
-			pushQ2, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-q2")
-			if err != nil {
-				return fmt.Errorf("failed to get queue, error %v", err)
-			}
-			taskQueue.SetPushQueue(pushQ1)
-			pushQ1.SetPushQueue(pushQ2)
+		taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
+		if err != nil {
+			return fmt.Errorf("failed to open queue, error %v", err)
+		}
 
-			err = taskQueue.StartConsuming(10, time.Second)
+		var pushQueues = make([]rmq.Queue, fRuntime.RetryQueueCount)
+		var previousQueue = taskQueue
+
+		index := 0
+		for index < fRuntime.RetryQueueCount {
+			pushQueues[index], err = connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-" + string(index))
 			if err != nil {
-				return fmt.Errorf("failed to start consumer taskQueue, error %v", err)
+				return fmt.Errorf("failed to open push queue, error %v", err)
 			}
-			err = pushQ1.StartConsuming(10, time.Second)
+			previousQueue.SetPushQueue(pushQueues[index])
+			previousQueue = pushQueues[index]
+		}
+
+		err = taskQueue.StartConsuming(10, time.Second)
+		if err != nil {
+			return fmt.Errorf("failed to start consumer taskQueue, error %v", err)
+		}
+		fRuntime.taskQueues[flowName] = taskQueue
+
+		index = 0
+		for index < fRuntime.RetryQueueCount {
+			err = pushQueues[index].StartConsuming(10, time.Second)
 			if err != nil {
 				return fmt.Errorf("failed to start consumer pushQ1, error %v", err)
 			}
-			err = pushQ2.StartConsuming(10, time.Second)
-			if err != nil {
-				return fmt.Errorf("failed to start consumer pushQ2, error %v", err)
-			}
+		}
 
-			name, err := taskQueue.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
+		index = 0
+		for index < fRuntime.Concurrency {
+			_, err := taskQueue.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
 			if err != nil {
 				return fmt.Errorf("failed to add consumer, error %v", err)
 			}
-			fRuntime.Logger.Log("Started consumer " + name)
-			name, err = pushQ1.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
-			if err != nil {
-				return fmt.Errorf("failed to add consumer, error %v", err)
-			}
-			fRuntime.Logger.Log("Started consumer " + name)
-			name, err = pushQ2.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
-			if err != nil {
-				return fmt.Errorf("failed to add consumer, error %v", err)
-			}
-			fRuntime.Logger.Log("Started consumer " + name)
-			fRuntime.taskQueues[flowName] = taskQueue
 			index++
+		}
+
+		index = 0
+		for index < fRuntime.RetryQueueCount {
+			_, err = pushQueues[index].AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
+			if err != nil {
+				return fmt.Errorf("failed to add consumer, error %v", err)
+			}
 		}
 	}
 
 	err = <-errorChan
+	<-connection.StopAllConsuming()
 	return err
 }
 
@@ -323,7 +325,7 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 		worker.Flows = append(worker.Flows, flowID)
 		dag, err := getFlowDefinition(defHandler)
 		if err != nil {
-			return fmt.Errorf("failed to strat runtime, dag export failed, error %v", err)
+			return fmt.Errorf("failed to start runtime, dag export failed, error %v", err)
 		}
 		flowDetails[flowID] = dag
 	}

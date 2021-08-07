@@ -1,8 +1,0 @@
-github.com/alexellis/hmac v0.0.0-20180624211220-5c52ab81c0de h1:jiPEvtW8VT0KwJxRyjW2VAAvlssjj9SfecsQ3Vgv5tk=
-github.com/alexellis/hmac v0.0.0-20180624211220-5c52ab81c0de/go.mod h1:uAbpy8G7sjNB4qYdY6ymf5OIQ+TLDPApBYiR0Vc3lhk=
-github.com/s8sg/goflow/faasflow/sdk v1.0.0 h1:ykb4xqkh/mO56Fut9i90jN2/mIlvBqx8nPqzbjON0Pc=
-github.com/s8sg/goflow/faasflow/sdk v1.0.0/go.mod h1:cpcCvb40uzDNzTT0qxiA6QGuOu8a71LMV2w/ikAW5LU=
-github.com/julienschmidt/httprouter v1.3.0 h1:U0609e9tgbseu3rBINet9P48AI/D3oJs4dN7jwJOQ1U=
-github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
-github.com/rs/xid v1.2.1 h1:mhH9Nq+C1fY2l1XIpgxIiUOfNpRBYH1kKcr+qfKgjRc=
-github.com/rs/xid v1.2.1/go.mod h1:+uKXf+4Djp6Md1KODXJxgGQPKngRmWyn10oCKFzNHOQ=
