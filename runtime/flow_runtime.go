@@ -272,9 +272,18 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 			}
 			taskQueue.SetPushQueue(pushQ1)
 			pushQ1.SetPushQueue(pushQ2)
+
 			err = taskQueue.StartConsuming(10, time.Second)
 			if err != nil {
-				return fmt.Errorf("failed to start consumer, error %v", err)
+				return fmt.Errorf("failed to start consumer taskQueue, error %v", err)
+			}
+			err = pushQ1.StartConsuming(10, time.Second)
+			if err != nil {
+				return fmt.Errorf("failed to start consumer pushQ1, error %v", err)
+			}
+			err = pushQ2.StartConsuming(10, time.Second)
+			if err != nil {
+				return fmt.Errorf("failed to start consumer pushQ2, error %v", err)
 			}
 
 			name, err := taskQueue.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
