@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// implements faasflow.EventHandler
+// implements core.EventHandler
 type GoFlowEventHandler struct {
 	CurrentNodeID string        // used to inject current node id in Tracer
 	Tracer        *TraceHandler // handle traces with open-tracing
