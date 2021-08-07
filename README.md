@@ -2,7 +2,7 @@
 A Golang based high performance, scalable and distributed workflow framework
 
 It allows to programmatically author distributed workflow as Directed Acyclic Graph (DAG) of tasks. 
-GoFlow executes your tasks on an array of Flow workers by uniformly distributing the loads 
+GoFlow executes your tasks on an array of workers by uniformly distributing the loads 
 
 ![Build](https://github.com/s8sg/goflow/workflows/GO-Flow-Build/badge.svg) 
 [![GoDoc](https://godoc.org/github.com/s8sg/goflow?status.svg)](https://godoc.org/github.com/s8sg/goflow)
@@ -15,7 +15,7 @@ go get github.com/s8sg/goflow
 ```
 
 ## Write First Flow
-> Library to Build Flow `github.com/s8sg/goflow/flow`
+> Library to Build Flow `github.com/s8sg/goflow/flow/v1`
 
 [![GoDoc](https://godoc.org/github.com/faasflow/goflow/flow?status.svg)](https://godoc.org/github.com/faasflow/goflow/flow)
 
@@ -25,8 +25,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/s8sg/goflow"
-	flow "github.com/s8sg/goflow/flow"
+	"github.com/s8sg/goflow/v1"
+	"github.com/s8sg/goflow/flow/v1"
 )
 
 // Workload function
@@ -35,23 +35,24 @@ func doSomething(data []byte, option map[string][]string) ([]byte, error) {
 }
 
 // Define provide definition of the workflow
-func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
-	f.SyncNode().Apply("test", doSomething)
-	return nil
+func DefineWorkflow(workflow *flow.Workflow, context *flow.Context) error {
+    dag := workflow.Dag()
+    dag.Node("test", doSomething)
+    return nil
 }
 
 func main() {
-	fs := &goflow.FlowService{
-		Port:                8080,
-		RedisURL:            "localhost:6379",
-		OpenTraceUrl:        "localhost:5775",
-		WorkerConcurrency:   5,
-	}
-	fs.Register("myflow", DefineWorkflow)
-	fs.Start()
+    fs := &goflow.FlowService{
+        Port:                8080,
+        RedisURL:            "localhost:6379",
+        OpenTraceUrl:        "localhost:5775",
+        WorkerConcurrency:   5,
+    }
+    fs.Register("myflow", DefineWorkflow)
+    fs.Start()
 }
 ```
-> `Start()` runs a HTTP Server that listen on the provided port and as a flow worker that handles the workload
+> `Start()` runs a HTTP Server that listen on the provided Port. It also runs a flow worker that handles the workload
 
 ## Run It 
 Start redis
@@ -71,11 +72,11 @@ curl -d hallo localhost:8080/myflow
 ```
 
 ## Scale It
-GoFlow scale horizontally, you can distribute the load by just adding more instances.
+GoFlow scale horizontally, you can distribute the load by just adding more instances
 
 #### Worker Mode
-Alternatively you can start your GoFlow in worker mode. As a worker GoFlow only handles the workload, 
-and if required you can only scale the workers 
+Alternatively you can start your GoFlow in worker mode. As a worker, GoFlow only handles the workload instead
+of running an HTTP server. If required you can only scale the workers 
 ```go
 fs := &goflow.FlowService{
     RedisURL:            "localhost:6379",
@@ -88,7 +89,7 @@ fs.StartWorker()
 
 #### Register Multiple Flow
 `Register()` allows user to bind multiple flows onto single flow service. 
-This way a server and or a worker can be used for more than one flows
+This way one instance of server/worker can be used for more than one flows
 ```go
 fs.Register("createUser", DefineCreateUserFlow)
 fs.Register("deleteUser", DefineDeleteUserFlow)
@@ -96,8 +97,8 @@ fs.Register("deleteUser", DefineDeleteUserFlow)
 
 ## Execute It
 
-Using the client you can requests the flow directly. 
-The requests are always async and gets queued for the worker to pick up
+Using the goflow client you can request the flow directly. 
+The requests are always async and gets queued for the workers to pick up
 ```go
 fs := &goflow.FlowService{
     RedisURL: "localhost:6379",
@@ -112,7 +113,7 @@ fs.Execute("myflow", &goflow.Request{
 ![Gopher staring_at flow](doc/goflow-gopher.jpg)
 
 The initial example is a single vertex DAG.
-Single vertex DAG (referred as `SyncNode`) are great for synchronous task
+Single vertex DAG are great for synchronous task
 
 Using [GoFlow's DAG construct](https://godoc.org/github.com/faasflow/lib/goflow#Dag) one can achieve more complex compositions
 with multiple vertexes and connect them using edges.
@@ -124,10 +125,9 @@ This is a asynchronous process consist of batch jobs
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
-    dag.Node("get-kyc-image").Apply('load-profile', loadProfile)
-       .Apply("get-image-url", getPresignedURLForImage)
-    dag.Node("face-detect").Apply("face-detect", detectFace)
-    dag.Node("mark-profile").Apply("mark-profile", markProfileBasedOnStatus)
+    dag.Node("get-kyc-image", getPresignedURLForImage)
+    dag.Node("face-detect", detectFace)
+    dag.Node("mark-profile", markProfileBasedOnStatus)
     dag.Edge("get-kyc-image", "face-detect")
     dag.Edge("face-detect", "mark-profile")
     return nil
@@ -145,16 +145,15 @@ and we are performing the operation in parallel to reduce time
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
-    dag.Node("get-kyc-image").Apply("load-profile", loadProfile)
-       .Apply("get-image-url", getPresignedURLForImage)
-    dag.Node("face-detect").Apply("face-detect", detectFace)
-    dag.Node("face-match").Apply("face-match", matchFace)
+    dag.Node("get-kyc-image", getPresignedURLForImage)
+    dag.Node("face-detect", detectFace)
+    dag.Node("face-match", matchFace)
     // Here mark-profile depends on the result from face-detect and face-match, 
     // we are using a aggregator to create unified results
-    dag.Node("mark-profile", flow.Aggregator(func(responses map[string][]byte) ([]byte, error) {
+    dag.Node("mark-profile", markProfileBasedOnStatus, flow.Aggregator(func(responses map[string][]byte) ([]byte, error) {
        status := validateResults(responses["face-detect"],  responses["face-match"])
        return []byte(status), nil
-    })).Apply("mark-profile", markProfileBasedOnStatus)
+    }))
     dag.Edge("get-kyc-image", "face-detect")
     dag.Edge("get-kyc-image", "face-match")
     dag.Edge("face-detect", "mark-profile")
@@ -170,7 +169,7 @@ Subdag allows to reuse existing DAG by embedding it into DAG with wider function
 [SubDag](https://godoc.org/github.com/faasflow/lib/goflow#Dag.SubDag) is available as a GoFlow DAG construct which takes
 a separate DAG as an input and composite it within a vertex, where the vertex completion depends on the embedded DAG's 
 completion
-```
+```go
 func (currentDag *Dag) SubDag(vertex string, dag *Dag)
 ```
 
@@ -180,19 +179,21 @@ in a library that can be shared across different flows
 ```go
 func KycImageValidationDag() *flow.Dag {
     dag := flow.NewDag()
-    dag.Node("verify-url").Appply("verify-image-url", s3DocExists)
-    dag.Node("face-detect").Apply("face-detect", detectFace)
-    dag.Node("face-match").Apply("face-match", matchFace)
-    dag.Node("generate-result", flow.Aggregator(func(responses map[string][]byte) ([]byte, error) {
-           status := validateResults(responses["face-detect"],  responses["face-match"])
-           status = "failure"
-           if status {
-              status = "success"
-           }
-           return []byte(status), nil
-        })).Apply("generate-result", func(data []byte, option map[string][]string) ([]byte, error) {
-           return data, nil
-        })
+    dag.Node("verify-url", s3DocExists)
+    dag.Node("face-detect", detectFace)
+    dag.Node("face-match", matchFace)
+    dag.Node("generate-result", func(data []byte, option map[string][]string) ([]byte, error) {
+                 return data, nil
+            }, 
+            flow.Aggregator(func(responses map[string][]byte) ([]byte, error) {
+                status := validateResults(responses["face-detect"],  responses["face-match"])
+                status = "failure"
+                if status {
+                   status = "success"
+                }
+                return []byte(status), nil
+            }
+    ))
     dag.Edge("verify-url", "face-detect")
     dag.Edge("verify-url", "face-match")
     dag.Edge("face-detect", "generate-result")
@@ -200,14 +201,13 @@ func KycImageValidationDag() *flow.Dag {
     return dag
 }
 ```
-Our existing flow embeds the library DAG
+Our existing flow embeds the `KycImageValidation` DAG
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
-    dag.Node("get-image").Apply("load-profile", loadProfile)
-           .Apply("get-image-url", getPresignedURLForImage)
+    dag.Node("get-image", getPresignedURLForImage)
     dag.SubDag("verify-image", common.KycImageValidationDag)
-    dag.Node("mark-profile").Apply("mark-profile", markProfileBasedOnStatus)
+    dag.Node("mark-profile", markProfileBasedOnStatus)
     dag.Edge("get-image", "verify-image")
     dag.Edge("verify-image", "mark-profile")
     return nil
@@ -237,18 +237,19 @@ Below is the updated example with a conditional Branch where we are trying to ca
 ```go
 func KycImageValidationDag() *flow.Dag {
     dag := flow.NewDag()
-    dag.Node("verify-url").Apply("verify-image-url", s3DocExists)
-    dag.Node("face-detect").Apply("face-detect", detectFace)
+    dag.Node("verify-url", s3DocExists)
+    dag.Node("face-detect", detectFace)
     // here face match happen only when face-detect is success
     branches = dag.ConditionalBranch("handle-face-detect-response", []string{"pass"}, func(response []byte) []string {
         response := ParseFaceDetectResponse(response)
         if response[0] == "pass" { return []string{"pass"}  }
         return []string{}
     })
-    // On the pass branch we are performing the `face-match`
-    // As defined condition `pass` is not matched execution of next node `generate-result` is continued
-    branches["pass"].Node("face-match").Apply("face-match", matchFace)
-  
+
+    // On the pass branch we are performing the `face-match` . If condition `pass` 
+    // is not matched execution of next node `generate-result` is continued
+
+    branches["pass"].Node("face-match", matchFace)
     dag.Node("generate-result", generateResult)
     dag.Edge("verify-url", "face-detect")
     dag.Edge("face-detect", "handle-face-detect-response")
@@ -264,19 +265,20 @@ Below is the updated example with two conditional Branches where we are trying t
 ```go
 func KycImageValidationDag() *flow.Dag {
     dag := flow.NewDag()
-    dag.Node("verify-url").Apply("verify-image-url", s3DocExists)
-    dag.Node("face-detect").Apply("face-detect", detectFace)
+    dag.Node("verify-url", s3DocExists)
+    dag.Node("face-detect", detectFace)
     // here face match happen only when face-detect is success
     // otherwise create-user is called
-    branches = dag.ConditionalBranch("handle-face-detect-response", []string{"pass", "fail"}, func(response []byte) []string {
-        response := ParseFaceDetectResponse(response)
-        if response[0] == "pass" { return []string{"pass"}  }
-        return []string{"fail"}
+    branches = dag.ConditionalBranch("handle-face-detect-response", []string{"pass", "fail"}, 
+        func(response []byte) []string {
+           response := ParseFaceDetectResponse(response)
+           if response.isSuccess() { return []string{"pass"}  }
+           return []string{"fail"}
     })
     // On the pass branch we are performing the `face-match`
-    branches["pass"].Node("face-match").Apply("face-match", matchFace)
+    branches["pass"].Node("face-match", matchFace)
     // on the fail branch we are performing `create-user`
-    branches["fail"].Node("create-user").Apply("create-user", createUser)
+    branches["fail"].Node("create-user", createUser)
   
     dag.Node("generate-result", generateResult)
     dag.Edge("verify-url", "face-detect")
@@ -305,7 +307,7 @@ We are updating our flow to execute over a set of user that has been listed for 
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
-    dag.Node("get-users").Apply("get-listed-users", getListedUsers)
+    dag.Node("get-users", getListedUsers)
     verifyDag = dag.ForEachBranch("for-each-user-verify", func(data []byte) map[string][]byte {
        users := ParseUsersList(data)
        forEachSet := make(map[string][]byte)
@@ -315,7 +317,7 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
        return forEachSet
     })
     verifyDag.SubDag("verify-image", KycImageValidationDag)
-    verifyDag.Node("mark-profile").Apply("mark-profile", markProfileBasedOnStatus)
+    verifyDag.Node("mark-profile", markProfileBasedOnStatus)
     verifyDag.Edge("verify-image", "mark-profile")
 
     dag.Edge("get-users", "for-each-user-verify")

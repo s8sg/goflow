@@ -1,4 +1,4 @@
-package goflow
+package v1
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ type FlowService struct {
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	WorkerConcurrency       int
-	RetryQueueCount         int
+	RetryCount              int
 	Flows                   map[string]runtime.FlowDefinitionHandler
 	RequestReadTimeout      time.Duration
 	RequestWriteTimeout     time.Duration
@@ -40,7 +40,7 @@ const (
 	DefaultWebServerPort      = 8080
 	DefaultReadTimeoutSecond  = 120
 	DefaultWriteTimeoutSecond = 120
-	DefaultRetryQueueCount    = 2
+	DefaultRetryCount         = 2
 )
 
 func (fs *FlowService) Execute(flowName string, req *Request) error {
@@ -193,7 +193,7 @@ func (fs *FlowService) Start() error {
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
-		RetryQueueCount:         fs.RetryQueueCount,
+		RetryQueueCount:         fs.RetryCount,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -221,7 +221,7 @@ func (fs *FlowService) StartServer() error {
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
-		RetryQueueCount:         fs.RetryQueueCount,
+		RetryQueueCount:         fs.RetryCount,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -246,7 +246,7 @@ func (fs *FlowService) StartWorker() error {
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
-		RetryQueueCount:         fs.RetryQueueCount,
+		RetryQueueCount:         fs.RetryCount,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -278,8 +278,8 @@ func (fs *FlowService) ConfigureDefault() {
 	if fs.RequestWriteTimeout == 0 {
 		fs.RequestWriteTimeout = DefaultWriteTimeoutSecond * time.Second
 	}
-	if fs.RetryQueueCount == 0 {
-		fs.RetryQueueCount = DefaultRetryQueueCount
+	if fs.RetryCount == 0 {
+		fs.RetryCount = DefaultRetryCount
 	}
 }
 

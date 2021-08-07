@@ -4,17 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/s8sg/goflow/core/runtime"
-	sdk "github.com/s8sg/goflow/core/sdk"
+	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/core/sdk/executor"
 	"github.com/s8sg/goflow/eventhandler"
-	"github.com/s8sg/goflow/flow"
+	"github.com/s8sg/goflow/flow/v1"
 	"io/ioutil"
 	"log"
 	"net/http"
 )
-
-// A signature of SHA265 equivalent of github.com/s8sg/faas-flow
-const defaultHmacKey = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
 
 type FlowExecutor struct {
 	gateway                 string
@@ -34,7 +31,7 @@ type FlowExecutor struct {
 	Runtime                 *FlowRuntime
 }
 
-type FlowDefinitionHandler func(flow *flow.Workflow, context *flow.Context) error
+type FlowDefinitionHandler func(flow *v1.Workflow, context *v1.Context) error
 
 func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 	var err error
@@ -57,7 +54,7 @@ func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 	return nil
 }
 
-func (fe *FlowExecutor) GetExecutionOption(operation sdk.Operation) map[string]interface{} {
+func (fe *FlowExecutor) GetExecutionOption(_ sdk.Operation) map[string]interface{} {
 	options := make(map[string]interface{})
 	options["gateway"] = fe.gateway
 	options["request-id"] = fe.reqID
@@ -98,8 +95,8 @@ func (fe *FlowExecutor) GetFlowName() string {
 }
 
 func (fe *FlowExecutor) GetFlowDefinition(pipeline *sdk.Pipeline, context *sdk.Context) error {
-	workflow := flow.GetWorkflow(pipeline)
-	faasflowContext := (*flow.Context)(context)
+	workflow := v1.GetWorkflow(pipeline)
+	faasflowContext := (*v1.Context)(context)
 	return fe.Handler(workflow, faasflowContext)
 }
 
