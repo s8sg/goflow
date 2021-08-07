@@ -273,6 +273,7 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 			}
 			previousQueue.SetPushQueue(pushQueues[index])
 			previousQueue = pushQueues[index]
+			index++
 		}
 
 		err = taskQueue.StartConsuming(10, time.Second)
@@ -287,6 +288,7 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 			if err != nil {
 				return fmt.Errorf("failed to start consumer pushQ1, error %v", err)
 			}
+			index++
 		}
 
 		index = 0
@@ -304,8 +306,11 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 			if err != nil {
 				return fmt.Errorf("failed to add consumer, error %v", err)
 			}
+			index++
 		}
 	}
+
+	fRuntime.Logger.Log("queue worker started successfully")
 
 	err = <-errorChan
 	<-connection.StopAllConsuming()
