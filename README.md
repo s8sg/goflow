@@ -1,11 +1,15 @@
 # Go-Flow
+
+![Build](https://github.com/s8sg/goflow/workflows/GO-Flow-Build/badge.svg) 
+[![GoDoc](https://godoc.org/github.com/s8sg/goflow?status.svg)](https://godoc.org/github.com/s8sg/goflow)
+
+
+![Gopher staring_at flow](doc/goflow-gopher.png)
+
 A Golang based high performance, scalable and distributed workflow framework
 
 It allows to programmatically author distributed workflow as Directed Acyclic Graph (DAG) of tasks. 
 GoFlow executes your tasks on an array of workers by uniformly distributing the loads 
-
-![Build](https://github.com/s8sg/goflow/workflows/GO-Flow-Build/badge.svg) 
-[![GoDoc](https://godoc.org/github.com/s8sg/goflow?status.svg)](https://godoc.org/github.com/s8sg/goflow)
 
 ## Install It 
 Install GoFlow
@@ -71,6 +75,19 @@ go build -o goflow
 curl -d hallo localhost:8080/myflow
 ```
 
+### Using Client
+
+Using the goflow client you can request the flow directly. 
+The requests are always async and gets queued for the workers to pick up
+```go
+fs := &goflow.FlowService{
+    RedisURL: "localhost:6379",
+}
+fs.Execute("myflow", &goflow.Request{
+    Body: []byte("hallo")
+})
+```
+
 ## Scale It
 GoFlow scale horizontally, you can distribute the load by just adding more instances
 
@@ -94,34 +111,24 @@ This way one instance of server/worker can be used for more than one flows
 fs.Register("createUser", DefineCreateUserFlow)
 fs.Register("deleteUser", DefineDeleteUserFlow)
 ```` 
-
-## Execute It
-
-Using the goflow client you can request the flow directly. 
-The requests are always async and gets queued for the workers to pick up
-```go
-fs := &goflow.FlowService{
-    RedisURL: "localhost:6379",
-}
-fs.Execute("myflow", &goflow.Request{
-    Body: []byte("hallo")
-})
-```
 <br />
 
 ## Creating More Complex DAG
-![Gopher staring_at flow](doc/goflow-gopher.jpg)
 
 The initial example is a single vertex DAG.
 Single vertex DAG are great for synchronous task
 
 Using [GoFlow's DAG construct](https://godoc.org/github.com/faasflow/lib/goflow#Dag) one can achieve more complex compositions
 with multiple vertexes and connect them using edges.
+
+### Multi Nodes
+
 A multi-vertex flow is always asynchronous in nature where each nodes gets
 distributed across the workers
 
 Below is an example of a simple multi vertex flow to validate a KYC image of a user and mark the user according to the result.
-This is a asynchronous process consist of batch jobs
+This is a asynchronous flow with three steps 
+![Async Flow](doc/goflow-sequential.png)
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
@@ -133,7 +140,7 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
-![Async Flow](doc/goflow-async.jpg)
+
 
 ### Branching
 Branching are great for parallelizing independent workloads in separate branches
@@ -142,6 +149,8 @@ Branching can be achieved with simple vertex and edges. GoFlow provides a specia
 
 We are extending our earlier example to include a new requirement to match the face with existing data 
 and we are performing the operation in parallel to reduce time
+![Branching](doc/goflow-branching.png)
+
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
@@ -161,7 +170,6 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
-![Branching](doc/goflow-branching.jpg)
 
 ### Subdag
 Subdag allows to reuse existing DAG by embedding it into DAG with wider functionality
@@ -176,6 +184,7 @@ func (currentDag *Dag) SubDag(vertex string, dag *Dag)
 Say we have a separate flow that needs the same set of steps to validate a user. 
 With our earlier example we can separate out the validation process into subdag and put it 
 in a library that can be shared across different flows
+![Subdag](doc/goflow-subdag.png)
 ```go
 func KycImageValidationDag() *flow.Dag {
     dag := flow.NewDag()
@@ -213,7 +222,7 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
-![Subdag](doc/goflow-subdag.jpg)
+
 
 ### Conditional Branching
 Conditional branching is a great way to choose different execution path dynamically
@@ -234,6 +243,7 @@ User gets the condition branches as a response where each branch specific dags a
 User can farther define each branch using the DAG constructs
 
 Below is the updated example with a conditional Branch where we are trying to call face-match only when face-detect passes
+![Conditional](doc/goflow-conditional-branching-1.png)
 ```go
 func KycImageValidationDag() *flow.Dag {
     dag := flow.NewDag()
@@ -257,11 +267,11 @@ func KycImageValidationDag() *flow.Dag {
     return dag
 }
 ```
-![Conditional](doc/goflow-conditional-branching.jpg)
 
 You can also have multiple conditional branch in a workflow and different nodes corresponding to each branch
 
 Below is the updated example with two conditional Branches where we are trying to call face-match or create-user based on response from previous node
+![Conditional](doc/goflow-conditional-branching-2.png)
 ```go
 func KycImageValidationDag() *flow.Dag {
     dag := flow.NewDag()
@@ -304,6 +314,7 @@ return a set of key and values. For each of the items in the returned set, the u
 User gets the foreach branch as a response and can define the flow using the DAG constructs
 
 We are updating our flow to execute over a set of user that has been listed for possible fraud
+![Foreach](doc/goflow-foreach-branching.png)
 ```go
 func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     dag := f.Dag()
@@ -324,7 +335,6 @@ func DefineWorkflow(f *flow.Workflow, context *flow.Context) error {
     return nil
 }
 ```
-![Foreach](doc/goflow-foreach-branching.jpg)
 
 
  
