@@ -77,11 +77,12 @@ const (
 
 func (fRuntime *FlowRuntime) Init() error {
 	var err error
+	redistOptions, err := redis.ParseURL(fRuntime.RedisURL)
+	if err != nil {
+		return fmt.Errorf("failed to initialize the redistOptions, %v", err)
+	}
+	fRuntime.rdb = redis.NewClient(redistOptions)
 
-	fRuntime.rdb = redis.NewClient(&redis.Options{
-		Addr: fRuntime.RedisURL,
-		DB:   0,
-	})
 
 	fRuntime.stateStore, err = initStateStore(fRuntime.RedisURL)
 	if err != nil {
