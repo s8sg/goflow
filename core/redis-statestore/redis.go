@@ -21,11 +21,13 @@ type Incrementer interface {
 func GetRedisStateStore(redisUri string) (faasflow.StateStore, error) {
 	stateStore := &RedisStateStore{}
 
-	client := redis.NewClient(&redis.Options{
-		Addr: redisUri,
-	})
+	redistOptions, err := redis.ParseURL(redisUri)
+	if err != nil {
+		return nil, err
+	}
+	client := redis.NewClient(redistOptions)
 
-	err := client.Ping().Err()
+	err = client.Ping().Err()
 	if err != nil {
 		return nil, err
 	}
