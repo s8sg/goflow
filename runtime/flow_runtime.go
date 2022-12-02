@@ -269,7 +269,7 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 
 		index := 0
 		for index < fRuntime.RetryQueueCount {
-			pushQueues[index], err = connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-" + fmt.Sprint())
+			pushQueues[index], err = connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-" + fmt.Sprint(index))
 			if err != nil {
 				return fmt.Errorf("failed to open push queue, error %v", err)
 			}
