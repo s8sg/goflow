@@ -8,7 +8,7 @@ services:
     volumes:
       - 'redis_data:/data'
 
-  jegertracing:
+  jaegertracing:
     image: jaegertracing/all-in-one:1.16.0
     ports:
       - 5775:5775/udp

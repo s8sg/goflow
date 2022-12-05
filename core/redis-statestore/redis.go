@@ -3,8 +3,9 @@ package RedisStateStore
 import (
 	"fmt"
 
-	faasflow "github.com/s8sg/goflow/core/sdk"
 	"github.com/go-redis/redis"
+
+	faasflow "github.com/s8sg/goflow/core/sdk"
 )
 
 type RedisStateStore struct {
@@ -72,7 +73,7 @@ func (this *RedisStateStore) Update(key string, oldValue string, newValue string
 }
 
 // Update Compare and Update a valuer
-func (this *RedisStateStore) Incr(key string, value int64) (int64, error) {
+func (this *RedisStateStore) IncrBy(key string, value int64) (int64, error) {
 	key = this.KeyPath + "." + key
 	client := this.rds
 	return client.IncrBy(key, value).Result()

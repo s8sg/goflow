@@ -26,6 +26,8 @@ type StateStore interface {
 	Set(key string, value string) error
 	// Get a value
 	Get(key string) (string, error)
+	// Increase the value of key with a given increment
+	IncrBy(key string, value int64) (int64, error)
 	// Compare and Update a value
 	Update(key string, oldValue string, newValue string) error
 	// Cleanup all the resources in StateStore (called only once in a request span)
