@@ -1,4 +1,4 @@
-all: setup compile run
+all: compile 
 clean:
 	@rm flow
 setup:
@@ -6,7 +6,7 @@ setup:
 
 compile:
 	@go build -o flow
-run: 
+run: setup
 	./flow &
 check:
 	@curl -d "Hell World" localhost:8080/myflow
