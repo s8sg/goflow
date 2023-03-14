@@ -3,9 +3,11 @@ package RedisStateStore
 import (
 	"fmt"
 
-	faasflow "github.com/s8sg/goflow/core/sdk"
 	"github.com/go-redis/redis"
+	faasflow "github.com/s8sg/goflow/core/sdk"
 )
+
+var _ faasflow.StateStore = (*RedisStateStore)(nil)
 
 type RedisStateStore struct {
 	KeyPath    string
@@ -121,4 +123,7 @@ func (this *RedisStateStore) Cleanup() error {
 		rerr = err
 	}
 	return rerr
+}
+func (this *RedisStateStore) CopyStore() (faasflow.StateStore, error) {
+	return &RedisStateStore{KeyPath: this.KeyPath, RetryCount: this.RetryCount, rds: this.rds}, nil
 }

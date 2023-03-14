@@ -7,6 +7,9 @@ import (
 	faasflow "github.com/s8sg/goflow/core/sdk"
 )
 
+// ensure RedisDataStore impl all DataStore method declaration
+var _ faasflow.DataStore = (*RedisDataStore)(nil)
+
 type RedisDataStore struct {
 	bucketName  string
 	redisClient redis.UniversalClient
@@ -103,4 +106,8 @@ func (this *RedisDataStore) Cleanup() error {
 func getPath(bucket, key string) string {
 	fileName := fmt.Sprintf("%s.value", key)
 	return fmt.Sprintf("%s.%s", bucket, fileName)
+}
+
+func (this *RedisDataStore) CopyStore() (faasflow.DataStore, error) {
+	return &RedisDataStore{bucketName: this.bucketName, redisClient: this.redisClient}, nil
 }
