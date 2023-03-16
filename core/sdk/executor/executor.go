@@ -957,9 +957,9 @@ func (fexec *FlowExecutor) initializeStore() (stateSDefined bool, dataSOverride 
 	if err != nil {
 		return
 	}
-
 	if stateS != nil {
-		fexec.stateStore = stateS
+		stateStore, _ := stateS.CopyStore()
+		fexec.stateStore = stateStore
 		stateSDefined = true
 		fexec.stateStore.Configure(fexec.flowName, fexec.id)
 		// If request is not partial initialize the stateStore
@@ -977,15 +977,15 @@ func (fexec *FlowExecutor) initializeStore() (stateSDefined bool, dataSOverride 
 		return
 	}
 	if dataS != nil {
-		fexec.dataStore = dataS
+		dataSotore, _ := dataS.CopyStore()
+		fexec.dataStore = dataSotore
 		dataSOverride = true
+		fexec.dataStore.Configure(fexec.flowName, fexec.id)
+		// If request is not partial initialize the dataStore
+		if !fexec.partial {
+			_ = fexec.dataStore.Init()
+		}
 	}
-	fexec.dataStore.Configure(fexec.flowName, fexec.id)
-	// If request is not partial initialize the dataStore
-	if !fexec.partial {
-		err = fexec.dataStore.Init()
-	}
-
 	return
 }
 

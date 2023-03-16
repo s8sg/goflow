@@ -14,6 +14,8 @@ type DataStore interface {
 	Del(key string) error
 	// Cleanup all the resources in DataStore
 	Cleanup() error
+	//Copy a DataSoure
+	CopyStore() (DataStore, error)
 }
 
 // StateStore for saving execution state
@@ -30,6 +32,8 @@ type StateStore interface {
 	Update(key string, oldValue string, newValue string) error
 	// Cleanup all the resources in StateStore (called only once in a request span)
 	Cleanup() error
+	//copy Store
+	CopyStore() (StateStore, error)
 }
 
 // EventHandler handle flow events

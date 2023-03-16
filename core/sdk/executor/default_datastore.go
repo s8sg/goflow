@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"github.com/s8sg/goflow/core/sdk"
 )
 
 // json to encode
@@ -59,4 +60,13 @@ func (rstore *requestEmbedDataStore) Del(key string) error {
 // Cleanup
 func (rstore *requestEmbedDataStore) Cleanup() error {
 	return nil
+}
+
+func (rstore *requestEmbedDataStore) CopyStore() (sdk.DataStore, error) {
+
+	newStore := make(map[string][]byte)
+	for k, v := range rstore.store {
+		newStore[k] = v
+	}
+	return &requestEmbedDataStore{newStore}, nil
 }
