@@ -2,11 +2,8 @@ package executor
 
 import (
 	"fmt"
-	faasflow "github.com/s8sg/goflow/core/sdk"
+	"github.com/s8sg/goflow/core/sdk"
 )
-
-// ensure requestEmbedDataStore impl all DataStore method declaration
-var _ faasflow.DataStore = (*requestEmbedDataStore)(nil)
 
 // json to encode
 type requestEmbedDataStore struct {
@@ -65,7 +62,7 @@ func (rstore *requestEmbedDataStore) Cleanup() error {
 	return nil
 }
 
-func (rstore *requestEmbedDataStore) CopyStore() (faasflow.DataStore, error) {
+func (rstore *requestEmbedDataStore) CopyStore() (sdk.DataStore, error) {
 
 	newStore := make(map[string][]byte)
 	for k, v := range rstore.store {

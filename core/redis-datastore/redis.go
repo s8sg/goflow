@@ -4,18 +4,15 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis"
-	faasflow "github.com/s8sg/goflow/core/sdk"
+	"github.com/s8sg/goflow/core/sdk"
 )
-
-// ensure RedisDataStore impl all DataStore method declaration
-var _ faasflow.DataStore = (*RedisDataStore)(nil)
 
 type RedisDataStore struct {
 	bucketName  string
 	redisClient redis.UniversalClient
 }
 
-func GetRedisDataStore(redisUri string) (faasflow.DataStore, error) {
+func GetRedisDataStore(redisUri string) (sdk.DataStore, error) {
 	ds := &RedisDataStore{}
 	client := redis.NewClient(&redis.Options{
 		Addr: redisUri,
@@ -108,6 +105,6 @@ func getPath(bucket, key string) string {
 	return fmt.Sprintf("%s.%s", bucket, fileName)
 }
 
-func (this *RedisDataStore) CopyStore() (faasflow.DataStore, error) {
+func (this *RedisDataStore) CopyStore() (sdk.DataStore, error) {
 	return &RedisDataStore{bucketName: this.bucketName, redisClient: this.redisClient}, nil
 }
