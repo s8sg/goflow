@@ -15,7 +15,7 @@ GoFlow executes your tasks on an array of workers by uniformly distributing the 
 Install GoFlow
 ```sh
 go mod init myflow
-go get github.com/s8sg/goflow@master
+go get github.com/s8sg/goflow
 ```
 
 ## Write First Flow
