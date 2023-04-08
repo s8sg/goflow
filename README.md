@@ -15,7 +15,7 @@ GoFlow executes your tasks on an array of workers by uniformly distributing the 
 Install GoFlow
 ```sh
 go mod init myflow
-go get github.com/s8sg/goflow
+go get github.com/s8sg/goflow@master
 ```
 
 ## Write First Flow
@@ -51,6 +51,7 @@ func main() {
         RedisURL:            "localhost:6379",
         OpenTraceUrl:        "localhost:5775",
         WorkerConcurrency:   5,
+        EnableMonitoring:    true,
     }
     fs.Register("myflow", DefineWorkflow)
     fs.Start()
@@ -59,10 +60,15 @@ func main() {
 > `Start()` runs a HTTP Server that listen on the provided Port. It also runs a flow worker that handles the workload
 
 ## Run It 
-Start redis
+Start goflow stack
 ```sh
-docker run --name redis -p 6379:6379 -d redis
+docker-compose up
 ```
+This will start the required services 
+* redis
+* jaeger
+* dashboard
+
 
 Run the Flow
 ```sh
@@ -71,6 +77,8 @@ go build -o goflow
 ```
 
 ## Invoke It
+
+### Using curl
 ```sh
 curl -d hallo localhost:8080/myflow
 ```
@@ -87,6 +95,10 @@ fs.Execute("myflow", &goflow.Request{
     Body: []byte("hallo")
 })
 ```
+
+### Using Dashboard
+Dashboard visualize the flow and provides observability
+![Dashboard](doc/dashboard.png)
 
 ## Scale It
 GoFlow scale horizontally, you can distribute the load by just adding more instances

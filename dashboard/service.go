@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/rs/xid"
-	"github.com/s8sg/goflow"
 	lib2 "github.com/s8sg/goflow/dashboard/lib"
+	goflow "github.com/s8sg/goflow/v1"
 	redis "gopkg.in/redis.v5"
 	"os"
 	"strings"
