@@ -1,0 +1,59 @@
+version: '3.3'
+services:
+  redis:
+    container_name: redis
+    image: redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - cache:/data
+    networks:
+      - goflow
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  jaeger:
+    container_name: jaeger
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "5775:5775/udp"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - LOG_LEVEL=debug
+    networks:
+      - goflow
+    healthcheck:
+      test: [ "CMD", "ls" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dashboard:
+    container_name: dashboard
+    image: goflow/dashboard:latest
+    build: ./dashboard
+    ports:
+      - "8082:8082"
+    environment:
+      REDIS_URL: "redis:6379"
+      TRACE_URL: "http://jaeger:16686/"
+    networks:
+      - goflow
+    depends_on:
+      jaeger:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  cache:
+    driver: local
+
+networks:
+  goflow:

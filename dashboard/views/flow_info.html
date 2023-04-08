@@ -1,0 +1,116 @@
+{{ define "flow-info" }}
+
+<!-- Content Row -->
+<div class="row">
+
+  <!-- Modal DELETE -->
+  <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteModalLabel">Remove flow</h5>
+        </div>
+        <div class="modal-body">
+          Are you sure you want to remove {{ .Flow.Name }}?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" onclick="return deleteFlow('{{ .Flow.Name }}');" class="btn btn-danger">Ok</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal EXECUTE -->
+  <div class="modal fade bd-example-modal-lg" id="executeModal" tabindex="-1" role="dialog" aria-labelledby="executeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="executeModalLabel">Execute {{ .Flow.Name }}</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form>
+            <div class="form-group">
+               <div class="form-check form-check-inline">
+                 <input class="form-check-input" type="radio" name="request.content_type" value="text/html" id="inlineRadio1" checked>
+                 <label class="form-check-label" for="inlineRadio1">Text</label>
+               </div>
+               <div class="form-check form-check-inline">
+                 <input class="form-check-input" type="radio" name="request.content_type" value="application/json" id="inlineRadio2">
+                 <label class="form-check-label" for="inlineRadio2">Json</label>
+               </div>
+            </div>
+            <div class="form-group">
+              <label for="request.body" rows="1" class="col-form-label">Body:</label>
+              <textarea class="form-control" rows="6" id="request.body"></textarea>
+            </div>
+            <div class="form-group">
+              <button type="button" onclick="return executeFlow('{{ .Flow.Name }}');" class="btn btn-primary">Execute</button>
+            </div>
+          </form>
+          <form>
+            <div class="form-group">
+              <label rows="1" for="response.status" class="col-form-label">Status:</label>
+              <textarea readonly rows="1" class="form-control" id="response.status" style="background: transparent"></textarea>
+
+              <label rows="1" for="response.id" class="col-form-label">Request Id:</label>
+              <textarea readonly rows="1" class="form-control" id="response.id" style="background: transparent"></textarea>
+
+              <label rows="1" for="response.body" class="col-form-label">Response:</label>
+              <textarea readonly rows="6" class="form-control" id="response.body" style="background: transparent"></textarea>
+            </div>
+            <div class="form-group">
+              <a id="response.monitor" href="#" class="btn btn-info" data-toggle="tooltip" title="Click to monitor the request" style="visibility: hidden">
+                <i class="fa fa-play-circle"></i>
+                Monitor
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border border-grey shadow shadow-sm" style="width: 70vw;">
+    <div id="graph" style="width: 69.85vw; height: 50vh; overflow: hidden;" align="center" class="rounded card-img-top">
+      <!-- DAG goes here -->
+    </div>
+    <div class="card-body bg-light">
+      <h2 id="request-id" class="card-title">Flow : {{ .Flow.Name }}</h2>
+    </div>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item" id="exec-count">Execution Count: {{ .Flow.InvocationCount }}</li>
+    </ul>
+    <div class="card-body">
+      <a id="execute" href="#" data-toggle="modal" data-target="#executeModal" class="card-link btn btn-success" data-toggle="tooltip" title="Click to execute the flow">
+        <i class="fa fa-play-circle"></i>
+        Execute
+      </a>
+      <a href="/flow/requests?flow-name={{ .Flow.Name }}" class="card-link btn btn-secondary" data-toggle="tooltip" title="Click to view monitoring information">
+        <i class="fa fa-tasks"></i>
+        Requests
+      </a>
+      <a href="/flow/request/monitor?flow-name={{ .Flow.Name }}" class="card-link btn btn-info" data-toggle="tooltip" title="Click to view monitoring information">
+        <i class="fa fa-search-plus"></i>
+        Monitor
+      </a>
+      <!--
+      <a id="remove" href="#" data-toggle="modal" data-target="#deleteModal" class="card-link btn btn-danger" data-toggle="tooltip" title="Click to remove the flow">
+        <i class="fa fa-trash-alt"></i>
+        Remove
+      </a>
+      -->
+    </div>
+  </div>
+
+</div>
+
+<script>
+  dot = "{{ .Flow.Dot }}";
+  updateGraph(dot);
+</script>
+
+{{ end }}

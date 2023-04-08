@@ -1,0 +1,95 @@
+{{ define "dashboard" }}
+
+<!-- Page Heading -->
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+  <h1 class="h3 mb-0 text-gray-800">Overview</h1>
+</div>
+
+<!-- Content Row -->
+<div class="row">
+
+  <div class="col-xl-3 col-md-6 mb-4">
+    <div class="card border-left-primary shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Flows</div>
+	        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ .DashBoard.TotalFlows }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="fas fa-calendar fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Earnings (Monthly) Card Example -->
+  <div class="col-xl-3 col-md-6 mb-4">
+    <div class="card border-left-success shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Ready Flows</div>
+            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ .DashBoard.ReadyFlows }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="fas fa-dollar-sign fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Earnings (Monthly) Card Example -->
+  <div class="col-xl-3 col-md-6 mb-4">
+    <div class="card border-left-info shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Requests</div>
+            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ .DashBoard.TotalRequests }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending Requests Card Example -->
+  <div class="col-xl-3 col-md-6 mb-4">
+    <div class="card border-left-warning shadow h-100 py-2">
+      <div class="card-body">
+        <div class="row no-gutters align-items-center">
+          <div class="col mr-2">
+            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Active Requests</div>
+	        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ .DashBoard.ActiveRequests }}</div>
+          </div>
+          <div class="col-auto">
+            <i class="fas fa-comments fa-2x text-gray-300"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6 col-md-6 mb-4">
+    <div class="card border border-grey shadow shadow-sm h-100 py-2">
+      <div class="card-body">
+        <h5 class="card-title">How to make your flow visible?</h5>
+        <p>
+          GoFlow Dashboard provides a visual representation of the flows that are deployed
+        </p>
+        <p>
+          In order to browse requests via this dashboard, make sure to run flows with Jaeger
+        </p>
+        <a href="https://github.com/s8sg/goflow-dashboard/blob/master/README.md" class="btn btn-secondary">Learn More</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{{ end }}

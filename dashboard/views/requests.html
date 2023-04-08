@@ -1,0 +1,63 @@
+{{ define "requests" }}
+
+<!-- Content Row -->
+<div class="row">
+    <div class="card border border-grey shadow shadow-sm h-100 py-2" style="width: 70vw; height: 50vh;">
+        {{ if .Requests.TracingEnabled }}
+        <div class="card-body">
+            {{ $flowName := .Requests.Flow }}
+            <h5 class="card-title">Requests for {{ $flowName }}</h5>
+            <table style="width: 68vw; overflow: hidden;" align="center" class="rounded table">
+                <thead>
+                <tr>
+                    <th>Request ID</th>
+                    <th>Trace ID</th>
+                    <th>State</th>
+                    <th>Start Time</th>
+                    <th>Duration</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                {{ range $key, $value := .Requests.Requests }}
+                <tbody>
+                    <tr>
+                        <td> <strong>{{ $key }}</strong> </td>
+                        <td> {{ $value.TraceId }} </td>
+                        <td> {{ $value.Status }} </td>
+                        <td> {{ $value.StartTime }} </td>
+                        <td> {{ $value.Duration }} </td>
+                        <td>
+                            <a href="/flow/request/monitor?flow-name={{ $flowName }}&request={{ $key }}" class="card-link btn btn-info" data-toggle="tooltip" title="Click to view monitoring information">
+                                <i class="fa fa-search-plus"></i>
+                                Monitor
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+                {{ end }}
+            </table>
+        </div>
+        {{ end }}
+        {{ if not .Requests.TracingEnabled }}
+            <div class="card-body">
+                <h5 class="card-title">How to make your flow requests visible?</h5>
+                <p>
+                    GoFlow monitoring provides execution status of individual requests and traces in the UI.
+                    In order to monitor flow function, tracing data must be stored in trace server.
+                    GoFlow uses jaeger as a tracing backend
+                </p>
+                <p>
+                    For flow function enable tracing <code>enable_tracing: true</code>
+                    and set trace server url <code>trace_server: "jaegertracing:5775"</code>
+                </p>
+                <p>
+                    Provide the same trace server API url <code>trace_url: "jaegertracing:16686"</code>
+                    in <code>conf.yml</code>
+                </p>
+                <a href="https://github.com/s8sg/goflow-dashboard/blob/master/README.md" class="btn btn-secondary">Learn More</a>
+            </div>
+        {{ end }}
+    </div>
+</div>
+
+{{ end }}
