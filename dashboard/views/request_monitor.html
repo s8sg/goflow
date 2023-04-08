@@ -1,0 +1,92 @@
+{{ define "request-monitor" }}
+
+{{ if .Requests.TracingEnabled }}
+<!-- google charts -->
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+{{ end }}
+
+<!-- Content Row -->
+<div class="row">
+    <div class="card border border-grey shadow shadow-sm h-100 py-2" style="width: 70vw;">
+        {{ if .Requests.TracingEnabled }}
+		<div id="canvas" style="width: 100%; height: 30vw; overflow: hidden;" align="center" class="rounded card-img-top">
+            <!-- Traces goes here -->
+        </div>
+        <div class="card-body bg-light">
+            <h2 id="request-id" class="card-title">Request ID: {{ .Traces.RequestID }}</h2>
+            <div>
+                <lebel for="refresh-traces"><b>Auto Refresh: </b></lebel>
+                <input id="refresh-traces" type="checkbox" data-toggle="toggle"
+                       data-on="<i class='fa fa-sync-alt'/>"
+                       data-off="<i class='fa fa-sync-alt'/>"
+                       data-onstyle="info" data-offstyle="secondary"
+                       data-size="xs"
+                       checked />
+            </div>
+        </div>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item" id="start-time"><b>Start Time:</b> {{ .Traces.StartTime }}</li>
+            <li class="list-group-item" id="exec-duration"><b>Duration:</b> {{ .Traces.Duration }}</li>
+		    <li class="list-group-item" id="exec-status"><b>Status:</b> {{ .Traces.Status }} </li>
+        </ul>
+        <div class="card-body">
+           <a id="stop-request" href="#" onclick="return stopRequest('{{ .Requests.Flow }}', '{{ .Traces.RequestID }}');"
+               class="card-link btn btn-danger" data-toggle="tooltip" title="Click to stop the request">
+               <i class="fa fa-stop"></i>
+               Stop
+           </a>
+           <a id="pause-request" href="#" onclick="return pauseRequest('{{ .Requests.Flow }}', '{{ .Traces.RequestID }}');"
+               class="card-link btn btn-warning" data-toggle="tooltip" title="Click to pause the request">
+               <i class="fa fa-pause"></i>
+               Pause
+           </a>
+           <a id="resume-request" href="#" onclick="return resumeRequest('{{ .Requests.Flow }}', '{{ .Traces.RequestID }}');"
+               class="card-link btn btn-success" data-toggle="tooltip" title="Click to resume the request">
+               <i class="fa fa-play"></i>
+               Resume
+           </a>
+           <a id="download-trace-logs" href="#"
+              class="card-link btn btn-secondary" data-toggle="tooltip" title="Click to download raw trace logs">
+               <i class="fa fa-download"></i>
+		       Logs
+		   </a>
+        </div>
+        {{ end }}
+        {{ if not .Requests.TracingEnabled }}
+            <div class="card-body">
+                <h5 class="card-title">How to make your flow requests visible?</h5>
+                <p>
+                    GoFlow monitoring provides execution status of individual requests and traces in the UI.
+                    In order to monitor flow function, tracing data must be stored in trace server.
+                    GoFlow uses jaeger as a tracing backend
+                </p>
+                <p>
+                    For flow function enable tracing <code>enable_tracing: true</code>
+                    and set trace server url <code>trace_server: "jaegertracing:5775"</code>
+                </p>
+                <p>
+                    Provide the same trace server API url <code>trace_url: "jaegertracing:16686"</code>
+                    in <code>conf.yml</code>
+                </p>
+                <a href="https://github.com/s8sg/goflow-dashboard/blob/master/README.md" class="btn btn-secondary">Learn More</a>
+            </div>
+        {{ end }}
+    </div>
+</div>
+
+{{ if .Requests.TracingEnabled }}
+    <script>
+        function loadTraces () {
+            loadTraceContent('{{ .Requests.Flow }}', '{{ .Traces.RequestID }}', '{{ .Traces.TraceId }}');
+            setInterval(function () {
+                let auto_refresh = $("#refresh-traces").prop("checked");
+                if (auto_refresh == true) {
+                    loadTraceContent('{{ .Requests.Flow }}', '{{ .Traces.RequestID }}', '{{ .Traces.TraceId }}');
+                }
+            }, 3000);
+        };
+        window.addEventListener("load", loadTraces, false);
+    </script>
+{{ end }}
+
+{{ end }}
