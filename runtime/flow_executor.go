@@ -21,7 +21,7 @@ type FlowExecutor struct {
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
-	IsLoggingEnabled		bool
+	IsLoggingEnabled        bool
 	partialState            []byte
 	rawRequest              *executor.RawRequest
 	StateStore              sdk.StateStore
@@ -45,8 +45,9 @@ func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 	request.FlowName = fe.flowName
 	request.Header = make(map[string][]string)
 	if fe.MonitoringEnabled() {
-		faasHandler := fe.EventHandler.(*eventhandler.GoFlowEventHandler)
-		faasHandler.Tracer.ExtendReqSpan(fe.reqID, faasHandler.CurrentNodeID, "", request)
+		// TODO: Fix issue
+		//faasHandler := fe.EventHandler.(*eventhandler.GoFlowEventHandler)
+		//faasHandler.Tracer.ExtendReqSpan(fe.reqID, faasHandler.CurrentNodeID, "", request)
 	}
 	err = fe.Runtime.EnqueuePartialRequest(request)
 	if err != nil {
@@ -122,7 +123,7 @@ func (fe *FlowExecutor) MonitoringEnabled() bool {
 }
 
 func (fe *FlowExecutor) GetEventHandler() (sdk.EventHandler, error) {
-	return fe.EventHandler, nil
+	return fe.EventHandler.Copy()
 }
 
 func (fe *FlowExecutor) LoggingEnabled() bool {
