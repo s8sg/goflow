@@ -9,6 +9,7 @@ Examples:
 | [serial](serial/serial.go)          | Serial sequential nodes |
 | [parallel](parallel/parallel.go)    | Parallel nodes          |
 | [condition](condition/condition.go) | Conditional nodes       |
+| [loop](loop/loop.go)                | Foreach loop nodes      |
 
 
 ## How to run
