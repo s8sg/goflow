@@ -42,6 +42,8 @@ type EventHandler interface {
 	Configure(flowName string, requestId string)
 	// Initialize an EventHandler (called only once in a request span)
 	Init() error
+	//copy Store
+	Copy() (EventHandler, error)
 	// ReportRequestStart report a start of request
 	ReportRequestStart(requestId string)
 	// ReportRequestEnd reports an end of request
