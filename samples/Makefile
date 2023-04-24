@@ -1,15 +1,5 @@
-all: compile 
+all: clean compile
 clean:
-	@rm flow
-setup:
-	@sudo docker run -p 6379:6379 -d redis
-
+	@rm examples || true
 compile:
-	@go build -o flow
-run: setup
-	./flow &
-check:
-	@curl -d "Hell World" localhost:8080/myflow
-	@echo "\n"
-shutdown:
-	@docker ps | awk -F ' ' '{ print $1 }' | tail -n 1 | xargs docker stop
+	@go build -o examples
