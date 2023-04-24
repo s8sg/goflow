@@ -107,6 +107,10 @@ func (tracerObj *TraceHandler) StartNodeSpan(node string, reqID string) {
 // StopNodeSpan terminates a node span
 func (tracerObj *TraceHandler) StopNodeSpan(node string) {
 
+	if tracerObj.nodeSpans[node] == nil {
+		return
+	}
+
 	tracerObj.nodeSpans[node].Finish()
 }
 
