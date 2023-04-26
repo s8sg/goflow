@@ -1,16 +1,24 @@
 package runtime
 
 import (
-	"github.com/s8sg/goflow/core/runtime/controller/handler"
+	"io"
 	"net/http"
+	"os"
+
+	"github.com/s8sg/goflow/core/runtime/controller/handler"
 
 	"github.com/s8sg/goflow/core/runtime"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/gin-gonic/gin"
 )
 
 func router(runtime runtime.Runtime) http.Handler {
-	router := httprouter.New()
+	gin.DisableConsoleColor()
+
+	f, _ := os.Create("gin.log")
+	gin.DefaultWriter = io.MultiWriter(f)
+
+	router := gin.Default()
 	router.POST("/:flowName", newRequestHandlerWrapper(runtime, handler.ExecuteFlowHandler))
 	router.GET("/:flowName", newRequestHandlerWrapper(runtime, handler.ExecuteFlowHandler))
 	return router

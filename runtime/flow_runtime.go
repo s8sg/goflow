@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+	"time"
+
 	"github.com/adjust/rmq/v4"
 	"github.com/jasonlvhit/gocron"
 	"github.com/rs/xid"
@@ -15,9 +19,6 @@ import (
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
 	"gopkg.in/redis.v5"
-	"log"
-	"net/http"
-	"time"
 )
 
 type FlowRuntime struct {
