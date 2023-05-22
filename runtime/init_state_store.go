@@ -5,7 +5,7 @@ import (
 	"github.com/s8sg/goflow/core/sdk"
 )
 
-func initStateStore(redisURI string) (stateStore sdk.StateStore, err error) {
-	stateStore, err = redisStateStore.GetRedisStateStore(redisURI)
+func initStateStore(redisURI string, password string) (stateStore sdk.StateStore, err error) {
+	stateStore, err = redisStateStore.GetRedisStateStore(redisURI, password)
 	return stateStore, err
 }
