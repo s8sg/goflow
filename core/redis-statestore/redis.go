@@ -18,11 +18,12 @@ type Incrementer interface {
 	Incr(key string, value int64) (int64, error)
 }
 
-func GetRedisStateStore(redisUri string) (sdk.StateStore, error) {
+func GetRedisStateStore(redisUri string, password string) (sdk.StateStore, error) {
 	stateStore := &RedisStateStore{}
 
 	client := redis.NewClient(&redis.Options{
-		Addr: redisUri,
+		Addr:     redisUri,
+		Password: password,
 	})
 
 	err := client.Ping().Err()
