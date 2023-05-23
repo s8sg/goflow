@@ -10,6 +10,7 @@ require (
 	github.com/gin-gonic/gin v1.9.0
 	github.com/go-playground/validator/v10 v10.12.0 // indirect
 	github.com/go-redis/redis v6.15.5+incompatible
+	github.com/go-redis/redis/v8 v8.3.2
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/jasonlvhit/gocron v0.0.1
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
