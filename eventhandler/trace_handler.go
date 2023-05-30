@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/s8sg/goflow/core/runtime"
 	"net/http"
+	"sync"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -18,8 +19,8 @@ type TraceHandler struct {
 	reqSpan    opentracing.Span
 	reqSpanCtx opentracing.SpanContext
 
-	nodeSpans      map[string]opentracing.Span
-	operationSpans map[string]map[string]opentracing.Span
+	nodeSpans      sync.Map //map[string]opentracing.Span
+	operationSpans sync.Map //map[string]map[string]opentracing.Span
 }
 
 // StartReqSpan starts a request span
@@ -55,10 +56,12 @@ func (tracerObj *TraceHandler) ExtendReqSpan(reqID string, lastNode string, url 
 	// TODO: as requestSpan can't be regenerated with the span context we
 	//       forward the nodes SpanContext
 	// span := reqSpan
-	span := tracerObj.nodeSpans[lastNode]
-	if span == nil {
+	value, ok := tracerObj.nodeSpans.Load(lastNode)
+	if !ok || value == nil {
 		return
 	}
+	span := value.(opentracing.Span)
+
 	ext.SpanKindRPCClient.Set(span)
 	ext.HTTPUrl.Set(span, url)
 	ext.HTTPMethod.Set(span, "POST")
@@ -91,43 +94,63 @@ func (tracerObj *TraceHandler) StopReqSpan() {
 // StartNodeSpan starts a node span
 func (tracerObj *TraceHandler) StartNodeSpan(node string, reqID string) {
 
-	tracerObj.nodeSpans[node] = tracerObj.tracer.StartSpan(
-		node, ext.RPCServerOption(tracerObj.reqSpanCtx))
+	tracerObj.nodeSpans.Store(node, tracerObj.tracer.StartSpan(
+		node, ext.RPCServerOption(tracerObj.reqSpanCtx)))
 
 	/*
 		 tracerObj.nodeSpans[node] = tracerObj.Tracer.StartSpan(
 			node, opentracing.ChildOf(reqSpan.Context()))
 	*/
 
-	tracerObj.nodeSpans[node].SetTag("async", "true")
-	tracerObj.nodeSpans[node].SetTag("request", reqID)
-	tracerObj.nodeSpans[node].SetTag("node", node)
+	value, ok := tracerObj.nodeSpans.Load(node)
+	if !ok {
+		return
+	}
+
+	span := value.(opentracing.Span)
+	span.SetTag("async", "true")
+	span.SetTag("request", reqID)
+	span.SetTag("node", node)
+
+	tracerObj.nodeSpans.Store(node, span)
 }
 
 // StopNodeSpan terminates a node span
 func (tracerObj *TraceHandler) StopNodeSpan(node string) {
 
-	if tracerObj.nodeSpans[node] == nil {
+	value, ok := tracerObj.nodeSpans.Load(node)
+	if !ok {
 		return
 	}
 
-	tracerObj.nodeSpans[node].Finish()
+	span := value.(opentracing.Span)
+	span.Finish()
+	tracerObj.nodeSpans.Store(node, span)
 }
 
 // StartOperationSpan starts an operation span
 func (tracerObj *TraceHandler) StartOperationSpan(node string, reqID string, operationID string) {
 
-	if tracerObj.nodeSpans[node] == nil {
+	if _, ok := tracerObj.nodeSpans.Load(node); !ok {
 		return
 	}
 
-	operationSpans, ok := tracerObj.operationSpans[node]
+	value2, ok := tracerObj.operationSpans.Load(node)
+	var operationSpans map[string]opentracing.Span
 	if !ok {
 		operationSpans = make(map[string]opentracing.Span)
-		tracerObj.operationSpans[node] = operationSpans
+		tracerObj.operationSpans.Store(node, operationSpans)
+	} else {
+		operationSpans = value2.(map[string]opentracing.Span)
 	}
 
-	nodeContext := tracerObj.nodeSpans[node].Context()
+	value, ok := tracerObj.nodeSpans.Load(node)
+	if !ok {
+		return
+	}
+
+	span := value.(opentracing.Span)
+	nodeContext := span.Context()
 	operationSpans[operationID] = tracerObj.tracer.StartSpan(
 		operationID, opentracing.ChildOf(nodeContext))
 
@@ -139,11 +162,12 @@ func (tracerObj *TraceHandler) StartOperationSpan(node string, reqID string, ope
 // StopOperationSpan stops an operation span
 func (tracerObj *TraceHandler) StopOperationSpan(node string, operationID string) {
 
-	if tracerObj.nodeSpans[node] == nil {
+	value, ok := tracerObj.operationSpans.Load(node)
+	if !ok {
 		return
 	}
 
-	operationSpans := tracerObj.operationSpans[node]
+	operationSpans := value.(map[string]opentracing.Span)
 	operationSpans[operationID].Finish()
 }
 

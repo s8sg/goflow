@@ -21,7 +21,7 @@ type FlowExecutor struct {
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
-	IsLoggingEnabled		bool
+	IsLoggingEnabled        bool
 	partialState            []byte
 	rawRequest              *executor.RawRequest
 	StateStore              sdk.StateStore
