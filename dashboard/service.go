@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/rs/xid"
+
 	lib2 "github.com/s8sg/goflow/dashboard/lib"
-	goflow "github.com/s8sg/goflow/v1"
+	goflow3 "github.com/s8sg/goflow/v1"
 	redis "gopkg.in/redis.v5"
 	"os"
 	"strings"
@@ -108,11 +109,12 @@ func getRequestState(flow, requestId string) (string, error) {
 
 // executeFlow execute a flow
 func executeFlow(flow string, data []byte) (string, error) {
-	fs := &goflow.FlowService{
+	fs := goflow3.FlowService{
 		RedisURL: getRedisAddr(),
 	}
+
 	requestId := getNewId()
-	request := &goflow.Request{
+	request := &goflow3.Request{
 		Body:      data,
 		RequestId: requestId,
 	}
@@ -127,7 +129,7 @@ func executeFlow(flow string, data []byte) (string, error) {
 
 // pauseRequest pause a request
 func pauseRequest(flow string, requestID string) error {
-	fs := &goflow.FlowService{
+	fs := &goflow3.FlowService{
 		RedisURL: getRedisAddr(),
 	}
 
@@ -141,7 +143,7 @@ func pauseRequest(flow string, requestID string) error {
 
 // resumeRequest resumes a request
 func resumeRequest(flow string, requestID string) error {
-	fs := &goflow.FlowService{
+	fs := &goflow3.FlowService{
 		RedisURL: getRedisAddr(),
 	}
 
@@ -155,7 +157,7 @@ func resumeRequest(flow string, requestID string) error {
 
 // stopRequest stops a request
 func stopRequest(flow string, requestID string) error {
-	fs := &goflow.FlowService{
+	fs := &goflow3.FlowService{
 		RedisURL: getRedisAddr(),
 	}
 
