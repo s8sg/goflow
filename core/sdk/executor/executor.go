@@ -182,33 +182,16 @@ func (fexec *FlowExecutor) getDynamicBranchOptions(nodeUniqueId string) ([]strin
 // incrementCounter increment counter by given term, if doesn't exist init with increment by
 func (fexec *FlowExecutor) incrementCounter(counter string, incrementBy int) (int, error) {
 	var serr error
-	count := 0
 	for i := 0; i < counterUpdateRetryCount; i++ {
-		encoded, err := fexec.stateStore.Get(counter)
+		count, err := fexec.stateStore.Incr(counter, int64(incrementBy))
 		if err != nil {
-			// if doesn't exist try to create
-			err := fexec.stateStore.Set(counter, fmt.Sprintf("%d", incrementBy))
-			if err != nil {
-				serr = fmt.Errorf("failed to update counter %s, error %v", counter, err)
-				continue
-			}
-			return incrementBy, nil
+			serr = fmt.Errorf("failed to update counter %s, error %v", counter, err)
+			continue
 		}
 
-		current, err := strconv.Atoi(encoded)
-		if err != nil {
-			return 0, fmt.Errorf("failed to update counter %s, error %v", counter, err)
-		}
-
-		count = current + incrementBy
-		counterStr := fmt.Sprintf("%d", count)
-
-		err = fexec.stateStore.Update(counter, encoded, counterStr)
-		if err == nil {
-			return count, nil
-		}
-		serr = err
+		return int(count), nil
 	}
+
 	return 0, fmt.Errorf("failed to update counter after max retry for %s, error %v", counter, serr)
 }
 
