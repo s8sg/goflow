@@ -2,10 +2,11 @@ package v1
 
 import (
 	"fmt"
+	"time"
+
 	runtimePkg "github.com/s8sg/goflow/core/runtime"
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/runtime"
-	"time"
 )
 
 type FlowService struct {
@@ -22,7 +23,7 @@ type FlowService struct {
 	DataStore               sdk.DataStore
 	Logger                  sdk.Logger
 	EnableMonitoring        bool
-	DebugEnabled			bool
+	DebugEnabled            bool
 
 	runtime *runtime.FlowRuntime
 }
@@ -195,7 +196,7 @@ func (fs *FlowService) Start() error {
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
-		DebugEnabled: 			 fs.DebugEnabled,
+		DebugEnabled:            fs.DebugEnabled,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -224,7 +225,7 @@ func (fs *FlowService) StartServer() error {
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
-		DebugEnabled: 			 fs.DebugEnabled,
+		DebugEnabled:            fs.DebugEnabled,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -250,7 +251,7 @@ func (fs *FlowService) StartWorker() error {
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
-		DebugEnabled: 			 fs.DebugEnabled,
+		DebugEnabled:            fs.DebugEnabled,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -281,9 +282,6 @@ func (fs *FlowService) ConfigureDefault() {
 	}
 	if fs.RequestWriteTimeout == 0 {
 		fs.RequestWriteTimeout = DefaultWriteTimeoutSecond * time.Second
-	}
-	if fs.RetryCount == 0 {
-		fs.RetryCount = DefaultRetryCount
 	}
 }
 
