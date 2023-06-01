@@ -42,7 +42,6 @@ const (
 	DefaultWebServerPort      = 8080
 	DefaultReadTimeoutSecond  = 120
 	DefaultWriteTimeoutSecond = 120
-	DefaultRetryCount         = 2
 )
 
 func (fs *FlowService) Execute(flowName string, req *Request) error {
