@@ -22,7 +22,7 @@ type FlowService struct {
 	DataStore               sdk.DataStore
 	Logger                  sdk.Logger
 	EnableMonitoring        bool
-	DebugEnabled			bool
+	DebugEnabled            bool
 
 	runtime *runtime.FlowRuntime
 }
@@ -195,7 +195,7 @@ func (fs *FlowService) Start() error {
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
-		DebugEnabled: 			 fs.DebugEnabled,
+		DebugEnabled:            fs.DebugEnabled,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -224,7 +224,7 @@ func (fs *FlowService) StartServer() error {
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
-		DebugEnabled: 			 fs.DebugEnabled,
+		DebugEnabled:            fs.DebugEnabled,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -250,7 +250,7 @@ func (fs *FlowService) StartWorker() error {
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
-		DebugEnabled: 			 fs.DebugEnabled,
+		DebugEnabled:            fs.DebugEnabled,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -261,6 +261,10 @@ func (fs *FlowService) StartWorker() error {
 	go fs.queueWorker(errorChan)
 	err := <-errorChan
 	return fmt.Errorf("worker has stopped, error: %v", err)
+}
+
+func (fs *FlowService) UpdateWorkflow(fName string, handler runtime.FlowDefinitionHandler) error {
+	return fs.runtime.UpdateFlow(fName, handler)
 }
 
 func (fs *FlowService) ConfigureDefault() {

@@ -107,6 +107,16 @@ func (fRuntime *FlowRuntime) Init() error {
 	return nil
 }
 
+func (fRuntime *FlowRuntime) UpdateFlow(flowName string, handler FlowDefinitionHandler) error {
+	if _, ok := fRuntime.Flows[flowName]; !ok {
+		return fmt.Errorf("flow %s not found", flowName)
+	}
+
+	fRuntime.Flows[flowName] = handler
+
+	return nil
+}
+
 func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Executor, error) {
 	flowHandler, ok := fRuntime.Flows[req.FlowName]
 	if !ok {
@@ -347,6 +357,16 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	}
 	err = gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
 		var err error
+		flowDetails := make(map[string]string)
+		for flowID, defHandler := range fRuntime.Flows {
+			worker.Flows = append(worker.Flows, flowID)
+			dag, err := getFlowDefinition(defHandler)
+			if err != nil {
+				log.Printf("failed to start runtime, dag export failed, error %v", err)
+			}
+			flowDetails[flowID] = dag
+		}
+
 		err = fRuntime.saveWorkerDetails(worker)
 		if err != nil {
 			log.Printf("failed to register worker details, %v", err)
