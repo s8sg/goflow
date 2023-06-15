@@ -18,7 +18,7 @@ func loopFunction(response []byte) map[string][]byte {
 	randNos := rand.Intn(10)
 	fmt.Printf("loop will be executed %d time(s)\n", randNos)
 	for i := 0; i < randNos; i++ {
-		forEachCondition[fmt.Sprint("%d", i)] = response
+		forEachCondition[fmt.Sprintf("%d", i)] = response
 	}
 	return forEachCondition
 }
