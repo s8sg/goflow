@@ -1,6 +1,7 @@
 package RedisDataStore
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/go-redis/redis"
@@ -61,7 +62,11 @@ func (this *RedisDataStore) Get(key string) ([]byte, error) {
 	}
 
 	fullPath := getPath(this.bucketName, key)
-	value, err := this.redisClient.Get(fullPath).Result()
+	v := this.redisClient.Get(fullPath)
+	if v == nil {
+		return nil, errors.New(fmt.Sprintf("error reading: %v, data is nil", fullPath))
+	}
+	value, err := v.Result()
 	if err != nil {
 		return nil, fmt.Errorf("error reading: %s, error: %s", fullPath, err.Error())
 	}
