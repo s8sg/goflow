@@ -1,6 +1,7 @@
 package RedisStateStore
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/go-redis/redis"
@@ -94,7 +95,11 @@ func (this *RedisStateStore) Set(key string, value string) error {
 func (this *RedisStateStore) Get(key string) (string, error) {
 	key = this.KeyPath + "." + key
 	client := this.rds
-	value, err := client.Get(key).Result()
+	v := client.Get(key)
+	if v == nil {
+		return "", errors.New(fmt.Sprintf("failed to get key %s, nil", key))
+	}
+	value, err := v.Result()
 	if err == redis.Nil {
 		return "", fmt.Errorf("failed to get key %s, nil", key)
 	} else if err != nil {
