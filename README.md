@@ -89,7 +89,7 @@ go build -o goflow
 
 ### Using curl
 ```sh
-curl -d hallo localhost:8080/myflow
+curl -d hallo localhost:8080/flow/myflow
 ```
 
 ### Using Client

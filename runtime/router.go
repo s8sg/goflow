@@ -16,6 +16,10 @@ func Router(fRuntime *FlowRuntime) http.Handler {
 	gin.DefaultWriter = io.MultiWriter(f)
 
 	router := gin.Default()
+	// TODO: below two routes are kept to be backward compatible, and will be removed later
+	router.POST(":flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
+	router.GET(":flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
+	// flow routes configuration
 	router.POST("flow/:flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
 	router.GET("flow/:flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
 	router.POST("flow/:flowName/stop", requestHandlerWrapper(RequestTypeStop, fRuntime, controller.ExecuteFlowHandler))
