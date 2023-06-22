@@ -83,7 +83,7 @@ func (fRuntime *FlowRuntime) Init() error {
 
 	fRuntime.rdb = redis.NewClient(&redis.Options{
 		Addr:     fRuntime.RedisURL,
-		Password: fRuntime.RequestAuthSharedSecret,
+		Password: fRuntime.RedisPassword,
 		DB:       0,
 	})
 
