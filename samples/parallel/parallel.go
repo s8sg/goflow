@@ -3,11 +3,13 @@ package parallel
 import (
 	"fmt"
 	flow "github.com/s8sg/goflow/flow/v1"
+	"time"
 )
 
 // Workload function
 func node1(data []byte, option map[string][]string) ([]byte, error) {
 	result := fmt.Sprintf("(Executing node 1 with data (%s))", string(data))
+	time.Sleep(time.Second * 5)
 	fmt.Println(result)
 	return []byte(result), nil
 }
@@ -15,6 +17,7 @@ func node1(data []byte, option map[string][]string) ([]byte, error) {
 // Workload function
 func node2(data []byte, option map[string][]string) ([]byte, error) {
 	result := fmt.Sprintf("(Executing node 2 with data (%s))", string(data))
+	time.Sleep(time.Second * 5)
 	fmt.Println(result)
 	return []byte(result), nil
 }
@@ -22,6 +25,7 @@ func node2(data []byte, option map[string][]string) ([]byte, error) {
 // Workload function
 func node3(data []byte, option map[string][]string) ([]byte, error) {
 	result := fmt.Sprintf("(Executing node 3 with data (%s))", string(data))
+	time.Sleep(time.Second * 5)
 	fmt.Println(result)
 	return []byte(result), nil
 }
@@ -29,6 +33,7 @@ func node3(data []byte, option map[string][]string) ([]byte, error) {
 // Workload function
 func node4(data []byte, option map[string][]string) ([]byte, error) {
 	result := fmt.Sprintf("(Executing node 4 with data (%s))", string(data))
+	time.Sleep(time.Second * 5)
 	fmt.Println(result)
 	return []byte(result), nil
 }

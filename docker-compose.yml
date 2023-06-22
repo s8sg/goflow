@@ -48,6 +48,7 @@ services:
       - "8082:8082"
     environment:
       REDIS_URL: "redis:6379"
+      REDIS_PASSWORD: "redis"
       TRACE_URL: "http://jaeger:16686/"
     networks:
       - goflow
