@@ -81,7 +81,7 @@ type Executor interface {
 	ExecutionRuntime
 }
 
-// FlowExecutor faas-flow executor
+// FlowExecutor goflow executor
 type FlowExecutor struct {
 	flow *sdk.Pipeline // the faas-flow
 
@@ -344,7 +344,7 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 			if fexec.executor.MonitoringEnabled() {
 				fexec.eventHandler.ReportOperationFailure(operation.GetId(), currentNode.GetUniqueId(), fexec.id, err)
 			}
-			err = fmt.Errorf("Node(%s), Operation (%s), error: execution failed, %v",
+			err = fmt.Errorf("node(%s), Operation (%s), error: execution failed, %v",
 				currentNode.GetUniqueId(), operation.GetId(), err)
 			return nil, err
 		}
@@ -648,7 +648,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	if len(options) > 1 {
 
 		// Get unique execution id of the node
-		key = pipeline.GetNodeExecutionUniqueId(currentNode) + "-branch-completion"
+		key = "-branch-completion" + pipeline.GetNodeExecutionUniqueId(currentNode)
 		// Update the state of in-degree completion and get the updated state
 
 		// Skip if dynamic node data forwarding is not disabled
@@ -1223,7 +1223,7 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	// Find the right node to execute now
 	fexec.findCurrentNodeToExecute()
 	currentNode, _ := fexec.flow.GetCurrentNodeDag()
-	result := []byte{}
+	var result []byte
 
 	switch {
 	// Execute the dynamic node
