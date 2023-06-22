@@ -1,25 +1,22 @@
 package runtime
 
 import (
+	"github.com/s8sg/goflow/core/runtime/controller"
 	"io"
 	"net/http"
 	"os"
 
-	"github.com/s8sg/goflow/core/runtime/controller/handler"
-
-	"github.com/s8sg/goflow/core/runtime"
-
 	"github.com/gin-gonic/gin"
 )
 
-func router(runtime runtime.Runtime) http.Handler {
+func Router(fRuntime *FlowRuntime) http.Handler {
 	gin.DisableConsoleColor()
 
 	f, _ := os.Create("gin.log")
 	gin.DefaultWriter = io.MultiWriter(f)
 
 	router := gin.Default()
-	router.POST("/:flowName", newRequestHandlerWrapper(runtime, handler.ExecuteFlowHandler))
-	router.GET("/:flowName", newRequestHandlerWrapper(runtime, handler.ExecuteFlowHandler))
+	router.POST("/:flowName", newRequestHandlerWrapper(fRuntime, controller.ExecuteFlowHandler))
+	router.GET("/:flowName", newRequestHandlerWrapper(fRuntime, controller.ExecuteFlowHandler))
 	return router
 }

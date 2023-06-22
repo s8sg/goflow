@@ -13,7 +13,7 @@ import (
 	"github.com/jasonlvhit/gocron"
 	"github.com/rs/xid"
 	"github.com/s8sg/goflow/core/runtime"
-	"github.com/s8sg/goflow/core/runtime/controller/handler"
+	"github.com/s8sg/goflow/core/runtime/controller"
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/core/sdk/executor"
 	"github.com/s8sg/goflow/core/sdk/exporter"
@@ -245,7 +245,7 @@ func (fRuntime *FlowRuntime) StartServer() error {
 		Addr:           fmt.Sprintf(":%d", fRuntime.ServerPort),
 		ReadTimeout:    fRuntime.ReadTimeout,
 		WriteTimeout:   fRuntime.WriteTimeout,
-		Handler:        router(fRuntime),
+		Handler:        Router(fRuntime),
 		MaxHeaderBytes: 1 << 20, // Max header of 1MB
 	}
 
@@ -400,20 +400,20 @@ func (fRuntime *FlowRuntime) Consume(message rmq.Delivery) {
 			fRuntime.Logger.Log("[goflow] failed to push message to retry queue, error " + err.Error())
 			return
 		}
-	} else {
-		if err = fRuntime.handleRequest(makeRequestFromTask(task), task.RequestType); err != nil {
-			fRuntime.Logger.Log("[goflow] rejecting task for failure, error " + err.Error())
-			if err := message.Push(); err != nil {
-				fRuntime.Logger.Log("[goflow] failed to push message to retry queue, error " + err.Error())
-				return
-			}
-		}
-
-		err = message.Ack()
-		if err != nil {
-			fRuntime.Logger.Log("[goflow] failed to acknowledge message, error " + err.Error())
+		return
+	}
+	if err := fRuntime.handleRequest(makeRequestFromTask(task), task.RequestType); err != nil {
+		fRuntime.Logger.Log("[goflow] rejecting task for failure, error " + err.Error())
+		if err := message.Push(); err != nil {
+			fRuntime.Logger.Log("[goflow] failed to push message to retry queue, error " + err.Error())
 			return
 		}
+	}
+
+	err := message.Ack()
+	if err != nil {
+		fRuntime.Logger.Log("[goflow] failed to acknowledge message, error " + err.Error())
+		return
 	}
 }
 
@@ -446,7 +446,7 @@ func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
 	response.RequestID = request.RequestID
 	response.Header = make(map[string][]string)
 
-	err = handler.ExecuteFlowHandler(response, request, flowExecutor)
+	err = controller.ExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		return fmt.Errorf("request failed to be processed. error: " + err.Error())
 	}
@@ -464,7 +464,7 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 	response.RequestID = request.RequestID
 	response.Header = make(map[string][]string)
 
-	err = handler.PartialExecuteFlowHandler(response, request, flowExecutor)
+	err = controller.PartialExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be processed. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("[goflow] request failed to be processed. error: " + err.Error())
@@ -480,7 +480,7 @@ func (fRuntime *FlowRuntime) handlePauseRequest(request *runtime.Request) error 
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.PauseFlowHandler(response, request, flowExecutor)
+	err = controller.PauseFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be paused. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be paused. error: %v", request.RequestID, err.Error())
@@ -496,7 +496,7 @@ func (fRuntime *FlowRuntime) handleResumeRequest(request *runtime.Request) error
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.ResumeFlowHandler(response, request, flowExecutor)
+	err = controller.ResumeFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be resumed. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be resumed. error: %v", request.RequestID, err.Error())
@@ -512,7 +512,7 @@ func (fRuntime *FlowRuntime) handleStopRequest(request *runtime.Request) error {
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.StopFlowHandler(response, request, flowExecutor)
+	err = controller.StopFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be stopped. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be stopped. error: %v", request.RequestID, err.Error())

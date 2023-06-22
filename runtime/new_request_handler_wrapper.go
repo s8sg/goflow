@@ -2,7 +2,9 @@ package runtime
 
 import (
 	"fmt"
+	runtimeCommon "github.com/s8sg/goflow/runtime/common"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	runtimepkg "github.com/s8sg/goflow/core/runtime"
@@ -11,14 +13,18 @@ import (
 	"github.com/s8sg/goflow/core/sdk/executor"
 )
 
-func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimepkg.Response, *runtimepkg.Request, executor.Executor) error) func(*gin.Context) {
+const (
+	AsyncRequestHeader = "X-Async"
+)
+
+func newRequestHandlerWrapper(runtime *FlowRuntime, handler func(*runtimepkg.Response, *runtimepkg.Request, executor.Executor) error) func(*gin.Context) {
 	fn := func(c *gin.Context) {
 		id := c.Param("id")
 		flowName := c.Param("flowName")
 
 		body, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			handleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
+			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
 			return
 		}
 
@@ -45,13 +51,26 @@ func newRequestHandlerWrapper(runtime runtimepkg.Runtime, handler func(*runtimep
 
 		ex, err := runtime.CreateExecutor(request)
 		if err != nil {
-			handleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
+			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
+			return
+		}
+
+		asyncRequest := request.GetHeader(AsyncRequestHeader)
+		if asyncRequest == "true" {
+			err = runtime.Execute(flowName, request)
+			if err != nil {
+				log.Printf("Failed to enqueue request, %v", err)
+				c.Writer.WriteHeader(http.StatusInternalServerError)
+				c.Writer.Write([]byte("Failed to enqueue request"))
+			}
+			c.Writer.WriteHeader(http.StatusOK)
+			c.Writer.Write([]byte("Request queued"))
 			return
 		}
 
 		err = handler(response, request, ex)
 		if err != nil {
-			handleError(c.Writer, fmt.Sprintf("request failed to be processed, "+err.Error()))
+			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("request failed to be processed, "+err.Error()))
 			return
 		}
 
