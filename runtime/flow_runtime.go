@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/adjust/rmq/v4"
+	redis2 "github.com/go-redis/redis/v8"
 	"github.com/jasonlvhit/gocron"
 	"github.com/rs/xid"
 	"github.com/s8sg/goflow/core/runtime"
-	"github.com/s8sg/goflow/core/runtime/controller/handler"
+	"github.com/s8sg/goflow/core/runtime/controller"
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/core/sdk/executor"
 	"github.com/s8sg/goflow/core/sdk/exporter"
@@ -24,9 +25,9 @@ import (
 
 type FlowRuntime struct {
 	Flows                   map[string]FlowDefinitionHandler
-	ExecFlows               map[string]FlowSnapshot
 	OpenTracingUrl          string
 	RedisURL                string
+	RedisPassword           string
 	stateStore              sdk.StateStore
 	DataStore               sdk.DataStore
 	Logger                  sdk.Logger
@@ -34,7 +35,6 @@ type FlowRuntime struct {
 	ServerPort              int
 	ReadTimeout             time.Duration
 	WriteTimeout            time.Duration
-	GarbageCollectionPeriod time.Duration
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
@@ -111,7 +111,7 @@ func (fRuntime *FlowRuntime) Init() error {
 }
 
 func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Executor, error) {
-	flowSnapshot, ok := fRuntime.ExecFlows[req.RequestID]
+	flowHandler, ok := fRuntime.Flows[req.FlowName]
 	if !ok {
 		return nil, fmt.Errorf("could not find handler for flow %s", req.FlowName)
 	}
@@ -122,7 +122,7 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 		DataStore:               fRuntime.DataStore,
 		EventHandler:            fRuntime.eventHandler,
 		EnableMonitoring:        fRuntime.EnableMonitoring,
-		Handler:                 flowSnapshot.Handler,
+		Handler:                 flowHandler,
 		Logger:                  fRuntime.Logger,
 		Runtime:                 fRuntime,
 		IsLoggingEnabled:        fRuntime.DebugEnabled,
@@ -131,8 +131,14 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 	return ex, err
 }
 
+// OpenConnection opens and returns a new connection
+func OpenConnectionV2(tag string, network string, address string, password string, db int, errChan chan<- error) (rmq.Connection, error) {
+	redisClient := redis2.NewClient(&redis2.Options{Network: network, Addr: address, Password: password, DB: db})
+	return rmq.OpenConnectionWithRedisClient(tag, redisClient, errChan)
+}
+
 func (fRuntime *FlowRuntime) Execute(flowName string, request *runtime.Request) error {
-	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	connection, err := OpenConnectionV2("goflow", "tcp", fRuntime.RedisURL, fRuntime.RedisPassword, 0, nil)
 	if err != nil {
 		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
@@ -158,7 +164,7 @@ func (fRuntime *FlowRuntime) Execute(flowName string, request *runtime.Request) 
 }
 
 func (fRuntime *FlowRuntime) Pause(flowName string, request *runtime.Request) error {
-	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	connection, err := OpenConnectionV2("goflow", "tcp", fRuntime.RedisURL, fRuntime.RedisPassword, 0, nil)
 	if err != nil {
 		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
@@ -322,37 +328,6 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 	return err
 }
 
-// gcWorker starts the garbage collection worker
-func (fRuntime *FlowRuntime) gcWorker() {
-	for {
-		time.Sleep(fRuntime.GarbageCollectionPeriod)
-		fRuntime.gc()
-	}
-}
-
-// gc checks the state of the flow in stateStore and removes it from ExecFlows if it is finished
-func (fRuntime *FlowRuntime) gc() {
-	// Loop ExecFlows and check the state of the flow
-	for requestId, snapshot := range fRuntime.ExecFlows {
-		redisKey := fmt.Sprintf("core.%s.%s.request-state", snapshot.FlowName, requestId)
-		state, err := fRuntime.stateStore.Get(redisKey)
-		if err != nil {
-			if strings.Contains(err.Error(), "nil") {
-				// The flow is finished
-				delete(fRuntime.ExecFlows, requestId)
-				log.Printf("removed flow %s from ExecFlows", requestId)
-			} else {
-				log.Printf("failed to get state from redis: %s", err)
-			}
-		}
-		if state == "FINISHED" {
-			// Remove the flow from ExecFlows
-			delete(fRuntime.ExecFlows, requestId)
-			log.Printf("removed flow %s from ExecFlows", requestId)
-		}
-	}
-}
-
 // StartRuntime starts the runtime
 func (fRuntime *FlowRuntime) StartRuntime() error {
 	worker := &Worker{
@@ -370,8 +345,6 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 		}
 		flowDetails[flowID] = dag
 	}
-	fRuntime.ExecFlows = make(map[string]FlowSnapshot)
-
 	err := fRuntime.saveWorkerDetails(worker)
 	if err != nil {
 		return fmt.Errorf("failed to register worker details, %v", err)
@@ -382,16 +355,6 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	}
 	err = gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
 		var err error
-		flowDetails := make(map[string]string)
-		for flowID, defHandler := range fRuntime.Flows {
-			worker.Flows = append(worker.Flows, flowID)
-			dag, err := getFlowDefinition(defHandler)
-			if err != nil {
-				log.Printf("failed to start runtime, dag export failed, error %v", err)
-			}
-			flowDetails[flowID] = dag
-		}
-
 		err = fRuntime.saveWorkerDetails(worker)
 		if err != nil {
 			log.Printf("failed to register worker details, %v", err)
@@ -404,7 +367,7 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	if err != nil {
 		return fmt.Errorf("failed to start runtime, %v", err)
 	}
-	go fRuntime.gcWorker()
+
 	<-gocron.Start()
 
 	return fmt.Errorf("[goflow] runtime stopped")
@@ -488,10 +451,11 @@ func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
 	response.RequestID = request.RequestID
 	response.Header = make(map[string][]string)
 
-	err = handler.ExecuteFlowHandler(response, request, flowExecutor)
+	err = controller.ExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		return fmt.Errorf("request failed to be processed. error: " + err.Error())
 	}
+
 	return nil
 }
 
@@ -505,7 +469,7 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 	response.RequestID = request.RequestID
 	response.Header = make(map[string][]string)
 
-	err = handler.PartialExecuteFlowHandler(response, request, flowExecutor)
+	err = controller.PartialExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be processed. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("[goflow] request failed to be processed. error: " + err.Error())
@@ -521,7 +485,7 @@ func (fRuntime *FlowRuntime) handlePauseRequest(request *runtime.Request) error 
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.PauseFlowHandler(response, request, flowExecutor)
+	err = controller.PauseFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be paused. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be paused. error: %v", request.RequestID, err.Error())
@@ -537,7 +501,7 @@ func (fRuntime *FlowRuntime) handleResumeRequest(request *runtime.Request) error
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.ResumeFlowHandler(response, request, flowExecutor)
+	err = controller.ResumeFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be resumed. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be resumed. error: %v", request.RequestID, err.Error())
@@ -553,7 +517,7 @@ func (fRuntime *FlowRuntime) handleStopRequest(request *runtime.Request) error {
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
-	err = handler.StopFlowHandler(response, request, flowExecutor)
+	err = controller.StopFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be stopped. error: %v", request.RequestID, err.Error()))
 		return fmt.Errorf("request %s failed to be stopped. error: %v", request.RequestID, err.Error())

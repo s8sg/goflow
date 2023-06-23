@@ -2,9 +2,9 @@ package eventhandler
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 )
@@ -37,8 +37,8 @@ func initRequestTracer(flowName, traceURI string) (*TraceHandler, error) {
 
 	tracerObj.closer = traceCloser
 	tracerObj.tracer = opentracer
-	tracerObj.nodeSpans = make(map[string]opentracing.Span)
-	tracerObj.operationSpans = make(map[string]map[string]opentracing.Span)
+	tracerObj.nodeSpans = sync.Map{} //make(map[string]opentracing.Span)
+	tracerObj.operationSpans = sync.Map{}
 
 	return tracerObj, nil
 }

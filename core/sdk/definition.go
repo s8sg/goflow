@@ -25,7 +25,7 @@ type NodeExporter struct {
 	IsDynamic        bool `json:"is-dynamic"`
 	IsCondition      bool `json:"is-condition"`
 	IsForeach        bool `json:"is-foreach"`
-	HasAggregator     bool `json:"has-aggregator"`
+	HasAggregator    bool `json:"has-aggregator"`
 	HasSubAggregator bool `json:"has-sub-aggregator"`
 	HasSubDag        bool `json:"has-subdag"`
 	InDegree         int  `json:"in-degree"`
@@ -129,7 +129,7 @@ func exportDag(exportDag *DagExporter, dag *Dag) {
 	}
 }
 
-// GetPipelineDefinition generate pipeline DAG defintion as a json
+// GetPipelineDefinition generate pipeline DAG definition as a json
 func GetPipelineDefinition(pipeline *Pipeline) string {
 	root := &DagExporter{}
 

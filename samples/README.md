@@ -29,9 +29,9 @@ Run flow
 ## How to execute
 Execute with curl
 ```bash
-curl -d hello localhost:8080/<name>
+curl -d hello localhost:8080/flow/<name>
 ```
 For example to execute `parallel` flow
 ```bash
-curl -d hello localhost:8080/parallel
+curl -d hello localhost:8080/flow/parallel
 ```

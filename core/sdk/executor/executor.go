@@ -81,7 +81,7 @@ type Executor interface {
 	ExecutionRuntime
 }
 
-// FlowExecutor faas-flow executor
+// FlowExecutor goflow executor
 type FlowExecutor struct {
 	flow *sdk.Pipeline // the faas-flow
 
@@ -112,6 +112,10 @@ const (
 	STATE_RUNNING  = "RUNNING"
 	STATE_FINISHED = "FINISHED"
 	STATE_PAUSED   = "PAUSED"
+)
+
+const (
+	RequestStateKey = "request-state"
 )
 
 type ExecutionStateOptions struct {
@@ -150,12 +154,12 @@ func (fexec *FlowExecutor) log(str string, a ...interface{}) {
 
 // setRequestState set the request state
 func (fexec *FlowExecutor) setRequestState(state string) error {
-	return fexec.stateStore.Set("request-state", state)
+	return fexec.stateStore.Set(RequestStateKey, state)
 }
 
 // getRequestState get state of the request
 func (fexec *FlowExecutor) getRequestState() (string, error) {
-	value, err := fexec.stateStore.Get("request-state")
+	value, err := fexec.stateStore.Get(RequestStateKey)
 	return value, err
 }
 
@@ -286,6 +290,17 @@ func (fexec *FlowExecutor) isActive() bool {
 	return state == STATE_RUNNING || state == STATE_PAUSED
 }
 
+// hasFinished check if flow has finished
+func (fexec *FlowExecutor) hasFinished() bool {
+	state, err := fexec.getRequestState()
+	if err != nil {
+		fexec.log("[request `%s`] failed to obtain pipeline state, error %v\n", fexec.id, err)
+		return false
+	}
+
+	return state == STATE_FINISHED
+}
+
 // isRunning check if flow is running
 func (fexec *FlowExecutor) isRunning() bool {
 	state, err := fexec.getRequestState()
@@ -326,7 +341,21 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 		// Check if request is terminate
 		if !fexec.isActive() {
 			fexec.log("[request `%s`] pipeline is not active\n", fexec.id)
-			panic(fmt.Sprintf("[request `%s`] Pipeline is not active", fexec.id))
+
+			if fexec.hasFinished() {
+				// Perform Graceful stop
+				// Cleanup data and state for failure
+				if fexec.stateStore != nil {
+					fexec.stateStore.Cleanup()
+				}
+				fexec.dataStore.Cleanup()
+
+				if fexec.notifyChan != nil {
+					fexec.notifyChan <- fexec.id
+				}
+			}
+
+			return nil, fmt.Errorf("[request `%s`] pipeline is not active", fexec.id)
 		}
 
 		if fexec.executor.MonitoringEnabled() {
@@ -344,7 +373,7 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 			if fexec.executor.MonitoringEnabled() {
 				fexec.eventHandler.ReportOperationFailure(operation.GetId(), currentNode.GetUniqueId(), fexec.id, err)
 			}
-			err = fmt.Errorf("Node(%s), Operation (%s), error: execution failed, %v",
+			err = fmt.Errorf("node(%s), Operation (%s), error: execution failed, %v",
 				currentNode.GetUniqueId(), operation.GetId(), err)
 			return nil, err
 		}
@@ -586,8 +615,23 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 
 	// Check if pipeline is active in state-store
 	if !fexec.isActive() {
+
 		fexec.log("[request `%s`] pipeline is not active\n", fexec.id)
-		panic(fmt.Sprintf("[request `%s`] Pipeline is not active", fexec.id))
+
+		if fexec.hasFinished() {
+			// Perform Graceful stop
+			// Cleanup data and state for failure
+			if fexec.stateStore != nil {
+				fexec.stateStore.Cleanup()
+			}
+			fexec.dataStore.Cleanup()
+
+			if fexec.notifyChan != nil {
+				fexec.notifyChan <- fexec.id
+			}
+		}
+
+		return false
 	}
 
 	currentNode, currentDag := pipeline.GetCurrentNodeDag()
@@ -648,7 +692,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	if len(options) > 1 {
 
 		// Get unique execution id of the node
-		key = pipeline.GetNodeExecutionUniqueId(currentNode) + "-branch-completion"
+		key = "-branch-completion" + pipeline.GetNodeExecutionUniqueId(currentNode)
 		// Update the state of in-degree completion and get the updated state
 
 		// Skip if dynamic node data forwarding is not disabled
@@ -1223,7 +1267,7 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 	// Find the right node to execute now
 	fexec.findCurrentNodeToExecute()
 	currentNode, _ := fexec.flow.GetCurrentNodeDag()
-	result := []byte{}
+	var result []byte
 
 	switch {
 	// Execute the dynamic node
@@ -1342,11 +1386,13 @@ func (fexec *FlowExecutor) Stop(reqId string) error {
 	if err != nil {
 		return fmt.Errorf("[request `%s`] Failed to mark dag state, error %v", fexec.id, err)
 	}
-	fexec.stateStore.Cleanup()
+	/*
+		fexec.stateStore.Cleanup()
 
-	if fexec.dataStore != nil {
-		fexec.dataStore.Cleanup()
-	}
+		if fexec.dataStore != nil {
+			fexec.dataStore.Cleanup()
+		}
+	*/
 
 	if fexec.notifyChan != nil {
 		fexec.notifyChan <- fexec.id

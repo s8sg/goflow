@@ -1,4 +1,4 @@
-package handler
+package controller
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	CallbackUrlHeader   = "X-Faas-Flow-Callback-Url"
-	RequestIdHeader     = "X-Faas-Flow-Reqid"
+	CallbackUrlHeader   = "X-Callback-Url"
+	RequestIdHeader     = "X-Reqid"
 	AuthSignatureHeader = "X-Hub-Signature"
 )
 

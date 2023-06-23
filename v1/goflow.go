@@ -18,12 +18,11 @@ type FlowService struct {
 	Flows                   map[string]runtime.FlowDefinitionHandler
 	RequestReadTimeout      time.Duration
 	RequestWriteTimeout     time.Duration
-	GarbageCollectionPeriod time.Duration
 	OpenTraceUrl            string
 	DataStore               sdk.DataStore
 	Logger                  sdk.Logger
 	EnableMonitoring        bool
-	DebugEnabled            bool
+	DebugEnabled			bool
 
 	runtime *runtime.FlowRuntime
 }
@@ -42,7 +41,6 @@ const (
 	DefaultWebServerPort                 = 8080
 	DefaultReadTimeoutSecond             = 120
 	DefaultWriteTimeoutSecond            = 120
-	DefaultRetryCount                    = 2
 	DefaultGarbageCollectionPeriodMinute = 2
 )
 
@@ -54,6 +52,7 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -85,6 +84,7 @@ func (fs *FlowService) Pause(flowName string, requestId string) error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -113,6 +113,7 @@ func (fs *FlowService) Resume(flowName string, requestId string) error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -141,6 +142,7 @@ func (fs *FlowService) Stop(flowName string, requestId string) error {
 	fs.ConfigureDefault()
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -177,7 +179,6 @@ func (fs *FlowService) UpdateWorkflow(fName string, handler runtime.FlowDefiniti
 }
 
 func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionHandler) error {
-	fmt.Println("Register")
 	if flowName == "" {
 		return fmt.Errorf("flow-name must not be empty")
 	}
@@ -207,6 +208,7 @@ func (fs *FlowService) Start() error {
 		Flows:                   fs.Flows,
 		OpenTracingUrl:          fs.OpenTraceUrl,
 		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
 		DataStore:               fs.DataStore,
 		Logger:                  fs.Logger,
 		ServerPort:              fs.Port,
@@ -238,6 +240,7 @@ func (fs *FlowService) StartServer() error {
 		Flows:                   fs.Flows,
 		OpenTracingUrl:          fs.OpenTraceUrl,
 		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
 		DataStore:               fs.DataStore,
 		Logger:                  fs.Logger,
 		ServerPort:              fs.Port,
@@ -267,6 +270,7 @@ func (fs *FlowService) StartWorker() error {
 		Flows:                   fs.Flows,
 		OpenTracingUrl:          fs.OpenTraceUrl,
 		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
 		DataStore:               fs.DataStore,
 		Logger:                  fs.Logger,
 		Concurrency:             fs.WorkerConcurrency,
@@ -306,9 +310,6 @@ func (fs *FlowService) ConfigureDefault() {
 	}
 	if fs.RequestWriteTimeout == 0 {
 		fs.RequestWriteTimeout = DefaultWriteTimeoutSecond * time.Second
-	}
-	if fs.RetryCount == 0 {
-		fs.RetryCount = DefaultRetryCount
 	}
 	if fs.GarbageCollectionPeriod == 0 {
 		fs.GarbageCollectionPeriod = DefaultGarbageCollectionPeriodMinute * time.Minute
