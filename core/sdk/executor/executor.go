@@ -114,6 +114,10 @@ const (
 	STATE_PAUSED   = "PAUSED"
 )
 
+const (
+	RequestStateKey = "request-state"
+)
+
 type ExecutionStateOptions struct {
 	newRequest   *RawRequest
 	partialState *PartialState
@@ -150,12 +154,12 @@ func (fexec *FlowExecutor) log(str string, a ...interface{}) {
 
 // setRequestState set the request state
 func (fexec *FlowExecutor) setRequestState(state string) error {
-	return fexec.stateStore.Set("request-state", state)
+	return fexec.stateStore.Set(RequestStateKey, state)
 }
 
 // getRequestState get state of the request
 func (fexec *FlowExecutor) getRequestState() (string, error) {
-	value, err := fexec.stateStore.Get("request-state")
+	value, err := fexec.stateStore.Get(RequestStateKey)
 	return value, err
 }
 
@@ -286,6 +290,17 @@ func (fexec *FlowExecutor) isActive() bool {
 	return state == STATE_RUNNING || state == STATE_PAUSED
 }
 
+// hasFinished check if flow has finished
+func (fexec *FlowExecutor) hasFinished() bool {
+	state, err := fexec.getRequestState()
+	if err != nil {
+		fexec.log("[request `%s`] failed to obtain pipeline state, error %v\n", fexec.id, err)
+		return false
+	}
+
+	return state == STATE_FINISHED
+}
+
 // isRunning check if flow is running
 func (fexec *FlowExecutor) isRunning() bool {
 	state, err := fexec.getRequestState()
@@ -326,7 +341,21 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 		// Check if request is terminate
 		if !fexec.isActive() {
 			fexec.log("[request `%s`] pipeline is not active\n", fexec.id)
-			panic(fmt.Sprintf("[request `%s`] Pipeline is not active", fexec.id))
+
+			if fexec.hasFinished() {
+				// Perform Graceful stop
+				// Cleanup data and state for failure
+				if fexec.stateStore != nil {
+					fexec.stateStore.Cleanup()
+				}
+				fexec.dataStore.Cleanup()
+
+				if fexec.notifyChan != nil {
+					fexec.notifyChan <- fexec.id
+				}
+			}
+
+			return nil, fmt.Errorf("[request `%s`] pipeline is not active", fexec.id)
 		}
 
 		if fexec.executor.MonitoringEnabled() {
@@ -586,8 +615,23 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 
 	// Check if pipeline is active in state-store
 	if !fexec.isActive() {
+
 		fexec.log("[request `%s`] pipeline is not active\n", fexec.id)
-		panic(fmt.Sprintf("[request `%s`] Pipeline is not active", fexec.id))
+
+		if fexec.hasFinished() {
+			// Perform Graceful stop
+			// Cleanup data and state for failure
+			if fexec.stateStore != nil {
+				fexec.stateStore.Cleanup()
+			}
+			fexec.dataStore.Cleanup()
+
+			if fexec.notifyChan != nil {
+				fexec.notifyChan <- fexec.id
+			}
+		}
+
+		return false
 	}
 
 	currentNode, currentDag := pipeline.GetCurrentNodeDag()
@@ -1342,11 +1386,13 @@ func (fexec *FlowExecutor) Stop(reqId string) error {
 	if err != nil {
 		return fmt.Errorf("[request `%s`] Failed to mark dag state, error %v", fexec.id, err)
 	}
-	fexec.stateStore.Cleanup()
+	/*
+		fexec.stateStore.Cleanup()
 
-	if fexec.dataStore != nil {
-		fexec.dataStore.Cleanup()
-	}
+		if fexec.dataStore != nil {
+			fexec.dataStore.Cleanup()
+		}
+	*/
 
 	if fexec.notifyChan != nil {
 		fexec.notifyChan <- fexec.id

@@ -9,6 +9,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	FlowNameParamName  = "flowName"
+	RequestIdParamName = "requestId"
+)
+
 func Router(fRuntime *FlowRuntime) http.Handler {
 	gin.DisableConsoleColor()
 
@@ -17,14 +22,16 @@ func Router(fRuntime *FlowRuntime) http.Handler {
 
 	router := gin.Default()
 	// TODO: below two routes are kept to be backward compatible, and will be removed later
-	router.POST(":flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
-	router.GET(":flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
+	router.POST(":"+FlowNameParamName, executeRequestHandler(fRuntime, controller.ExecuteFlowHandler))
+	router.GET(":"+FlowNameParamName, executeRequestHandler(fRuntime, controller.ExecuteFlowHandler))
 	// flow routes configuration
-	router.POST("flow/:flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
-	router.GET("flow/:flowName", requestHandlerWrapper(RequestTypeExecute, fRuntime, controller.ExecuteFlowHandler))
-	router.POST("flow/:flowName/stop", requestHandlerWrapper(RequestTypeStop, fRuntime, controller.ExecuteFlowHandler))
-	router.POST("flow/:flowName/pause", requestHandlerWrapper(RequestTypePause, fRuntime, controller.ExecuteFlowHandler))
-	router.POST("flow/:flowName/resume", requestHandlerWrapper(RequestTypeResume, fRuntime, controller.ExecuteFlowHandler))
-	router.GET("flow/list", requestHandlerWrapper(RequestTypeList, fRuntime, controller.ExecuteFlowHandler))
+	router.POST("flow/:"+FlowNameParamName, executeRequestHandler(fRuntime, controller.ExecuteFlowHandler))
+	router.GET("flow/:"+FlowNameParamName, executeRequestHandler(fRuntime, controller.ExecuteFlowHandler))
+	router.POST("flow/:"+FlowNameParamName+"/request/stop:"+RequestIdParamName, stopRequestHandler(fRuntime))
+	router.POST("flow/:"+FlowNameParamName+"/request/pause:"+RequestIdParamName, pauseRequestHandler(fRuntime))
+	router.POST("flow/:"+FlowNameParamName+"/request/resume:"+RequestIdParamName, resumeRequestHandler(fRuntime))
+	router.POST("flow/:"+FlowNameParamName+"/request/state:"+RequestIdParamName, requestStateHandler(fRuntime))
+	router.POST("flow/:"+FlowNameParamName+"/request/list", requestListHandler(fRuntime))
+
 	return router
 }

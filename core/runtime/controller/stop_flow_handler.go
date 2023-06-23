@@ -8,7 +8,7 @@ import (
 )
 
 func StopFlowHandler(response *runtime.Response, request *runtime.Request, ex executor.Executor) error {
-	log.Printf("Pausing request %s for flow %s\n", request.FlowName, request.RequestID)
+	log.Printf("Stopping request %s for flow %s\n", request.FlowName, request.RequestID)
 
 	flowExecutor := executor.CreateFlowExecutor(ex, nil)
 	err := flowExecutor.Stop(request.RequestID)
