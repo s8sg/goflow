@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/adjust/rmq/v4"
@@ -23,6 +24,7 @@ import (
 
 type FlowRuntime struct {
 	Flows                   map[string]FlowDefinitionHandler
+	ExecFlows               map[string]FlowSnapshot
 	OpenTracingUrl          string
 	RedisURL                string
 	stateStore              sdk.StateStore
@@ -32,6 +34,7 @@ type FlowRuntime struct {
 	ServerPort              int
 	ReadTimeout             time.Duration
 	WriteTimeout            time.Duration
+	GarbageCollectionPeriod time.Duration
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
@@ -107,18 +110,8 @@ func (fRuntime *FlowRuntime) Init() error {
 	return nil
 }
 
-func (fRuntime *FlowRuntime) UpdateFlow(flowName string, handler FlowDefinitionHandler) error {
-	if _, ok := fRuntime.Flows[flowName]; !ok {
-		return fmt.Errorf("flow %s not found", flowName)
-	}
-
-	fRuntime.Flows[flowName] = handler
-
-	return nil
-}
-
 func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Executor, error) {
-	flowHandler, ok := fRuntime.Flows[req.FlowName]
+	flowSnapshot, ok := fRuntime.ExecFlows[req.RequestID]
 	if !ok {
 		return nil, fmt.Errorf("could not find handler for flow %s", req.FlowName)
 	}
@@ -129,7 +122,7 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 		DataStore:               fRuntime.DataStore,
 		EventHandler:            fRuntime.eventHandler,
 		EnableMonitoring:        fRuntime.EnableMonitoring,
-		Handler:                 flowHandler,
+		Handler:                 flowSnapshot.Handler,
 		Logger:                  fRuntime.Logger,
 		Runtime:                 fRuntime,
 		IsLoggingEnabled:        fRuntime.DebugEnabled,
@@ -139,7 +132,6 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 }
 
 func (fRuntime *FlowRuntime) Execute(flowName string, request *runtime.Request) error {
-
 	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
 	if err != nil {
 		return fmt.Errorf("failed to initiate connection, error %v", err)
@@ -330,6 +322,37 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 	return err
 }
 
+// gcWorker starts the garbage collection worker
+func (fRuntime *FlowRuntime) gcWorker() {
+	for {
+		time.Sleep(fRuntime.GarbageCollectionPeriod)
+		fRuntime.gc()
+	}
+}
+
+// gc checks the state of the flow in stateStore and removes it from ExecFlows if it is finished
+func (fRuntime *FlowRuntime) gc() {
+	// Loop ExecFlows and check the state of the flow
+	for requestId, snapshot := range fRuntime.ExecFlows {
+		redisKey := fmt.Sprintf("core.%s.%s.request-state", snapshot.FlowName, requestId)
+		state, err := fRuntime.stateStore.Get(redisKey)
+		if err != nil {
+			if strings.Contains(err.Error(), "nil") {
+				// The flow is finished
+				delete(fRuntime.ExecFlows, requestId)
+				log.Printf("removed flow %s from ExecFlows", requestId)
+			} else {
+				log.Printf("failed to get state from redis: %s", err)
+			}
+		}
+		if state == "FINISHED" {
+			// Remove the flow from ExecFlows
+			delete(fRuntime.ExecFlows, requestId)
+			log.Printf("removed flow %s from ExecFlows", requestId)
+		}
+	}
+}
+
 // StartRuntime starts the runtime
 func (fRuntime *FlowRuntime) StartRuntime() error {
 	worker := &Worker{
@@ -347,6 +370,8 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 		}
 		flowDetails[flowID] = dag
 	}
+	fRuntime.ExecFlows = make(map[string]FlowSnapshot)
+
 	err := fRuntime.saveWorkerDetails(worker)
 	if err != nil {
 		return fmt.Errorf("failed to register worker details, %v", err)
@@ -379,7 +404,7 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	if err != nil {
 		return fmt.Errorf("failed to start runtime, %v", err)
 	}
-
+	go fRuntime.gcWorker()
 	<-gocron.Start()
 
 	return fmt.Errorf("[goflow] runtime stopped")
@@ -448,6 +473,12 @@ func (fRuntime *FlowRuntime) handleRequest(request *runtime.Request, requestType
 }
 
 func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
+	if _, ok := fRuntime.ExecFlows[request.RequestID]; !ok {
+		fRuntime.ExecFlows[request.RequestID] = FlowSnapshot{
+			FlowName: request.FlowName,
+			Handler:  fRuntime.Flows[request.FlowName],
+		}
+	}
 	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
 		return fmt.Errorf("failed to execute request " + request.RequestID + ", error: " + err.Error())
@@ -461,7 +492,6 @@ func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
 	if err != nil {
 		return fmt.Errorf("request failed to be processed. error: " + err.Error())
 	}
-
 	return nil
 }
 

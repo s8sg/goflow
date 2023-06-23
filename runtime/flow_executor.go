@@ -21,7 +21,7 @@ type FlowExecutor struct {
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
-	IsLoggingEnabled		bool
+	IsLoggingEnabled        bool
 	partialState            []byte
 	rawRequest              *executor.RawRequest
 	StateStore              sdk.StateStore
@@ -30,6 +30,11 @@ type FlowExecutor struct {
 	Logger                  sdk.Logger
 	Handler                 FlowDefinitionHandler
 	Runtime                 *FlowRuntime
+}
+
+type FlowSnapshot struct {
+	FlowName string
+	Handler  FlowDefinitionHandler
 }
 
 type FlowDefinitionHandler func(flow *v1.Workflow, context *v1.Context) error

@@ -18,6 +18,7 @@ type FlowService struct {
 	Flows                   map[string]runtime.FlowDefinitionHandler
 	RequestReadTimeout      time.Duration
 	RequestWriteTimeout     time.Duration
+	GarbageCollectionPeriod time.Duration
 	OpenTraceUrl            string
 	DataStore               sdk.DataStore
 	Logger                  sdk.Logger
@@ -35,13 +36,14 @@ type Request struct {
 }
 
 const (
-	DefaultTraceUrl           = "localhost:5775"
-	DefaultRedisUrl           = "localhost:6379"
-	DefaultWorkerConcurrency  = 2
-	DefaultWebServerPort      = 8080
-	DefaultReadTimeoutSecond  = 120
-	DefaultWriteTimeoutSecond = 120
-	DefaultRetryCount         = 2
+	DefaultTraceUrl                      = "localhost:5775"
+	DefaultRedisUrl                      = "localhost:6379"
+	DefaultWorkerConcurrency             = 2
+	DefaultWebServerPort                 = 8080
+	DefaultReadTimeoutSecond             = 120
+	DefaultWriteTimeoutSecond            = 120
+	DefaultRetryCount                    = 2
+	DefaultGarbageCollectionPeriodMinute = 2
 )
 
 func (fs *FlowService) Execute(flowName string, req *Request) error {
@@ -155,7 +157,27 @@ func (fs *FlowService) Stop(flowName string, requestId string) error {
 	return nil
 }
 
+func (fs *FlowService) UpdateWorkflow(fName string, handler runtime.FlowDefinitionHandler) error {
+	if fName == "" {
+		return fmt.Errorf("flow-name must not be empty")
+	}
+	if handler == nil {
+		return fmt.Errorf("handler must not be nil")
+	}
+
+	if fs.Flows == nil {
+		return fmt.Errorf("no flows registered")
+	}
+
+	if fs.Flows == nil {
+		return fmt.Errorf("flow %s registered", fName)
+	}
+	fs.Flows[fName] = handler
+	return nil
+}
+
 func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionHandler) error {
+	fmt.Println("Register")
 	if flowName == "" {
 		return fmt.Errorf("flow-name must not be empty")
 	}
@@ -196,6 +218,7 @@ func (fs *FlowService) Start() error {
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
 		DebugEnabled:            fs.DebugEnabled,
+		GarbageCollectionPeriod: fs.GarbageCollectionPeriod,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -225,6 +248,7 @@ func (fs *FlowService) StartServer() error {
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
 		DebugEnabled:            fs.DebugEnabled,
+		GarbageCollectionPeriod: fs.GarbageCollectionPeriod,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -251,6 +275,7 @@ func (fs *FlowService) StartWorker() error {
 		EnableMonitoring:        fs.EnableMonitoring,
 		RetryQueueCount:         fs.RetryCount,
 		DebugEnabled:            fs.DebugEnabled,
+		GarbageCollectionPeriod: fs.GarbageCollectionPeriod,
 	}
 	errorChan := make(chan error)
 	defer close(errorChan)
@@ -261,10 +286,6 @@ func (fs *FlowService) StartWorker() error {
 	go fs.queueWorker(errorChan)
 	err := <-errorChan
 	return fmt.Errorf("worker has stopped, error: %v", err)
-}
-
-func (fs *FlowService) UpdateWorkflow(fName string, handler runtime.FlowDefinitionHandler) error {
-	return fs.runtime.UpdateFlow(fName, handler)
 }
 
 func (fs *FlowService) ConfigureDefault() {
@@ -288,6 +309,9 @@ func (fs *FlowService) ConfigureDefault() {
 	}
 	if fs.RetryCount == 0 {
 		fs.RetryCount = DefaultRetryCount
+	}
+	if fs.GarbageCollectionPeriod == 0 {
+		fs.GarbageCollectionPeriod = DefaultGarbageCollectionPeriodMinute * time.Minute
 	}
 }
 
