@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/rs/xid"
+	"log"
 
 	lib2 "github.com/s8sg/goflow/dashboard/lib"
 	goflow3 "github.com/s8sg/goflow/v1"
@@ -20,6 +21,7 @@ func listGoFLows() ([]*Flow, error) {
 	rdb.Process(command)
 	flowKeys, err := command.Result()
 	if err != nil {
+		log.Printf("Failed get to flow lists from redis, %v", err)
 		return nil, nil
 	}
 	flows := make([]*Flow, 0)
@@ -43,6 +45,7 @@ func getDot(flowName string) (string, error) {
 	rdb.Process(command)
 	definition, err := command.Result()
 	if err != nil {
+		log.Printf("Failed get to dot from redis, %v", err)
 		return "", nil
 	}
 	dot, err := lib2.MakeDotFromDefinitionString(definition)
@@ -110,7 +113,8 @@ func getRequestState(flow, requestId string) (string, error) {
 // executeFlow execute a flow
 func executeFlow(flow string, data []byte) (string, error) {
 	fs := goflow3.FlowService{
-		RedisURL: getRedisAddr(),
+		RedisURL:      getRedisAddr(),
+		RedisPassword: getRedisPassword(),
 	}
 
 	requestId := getNewId()
@@ -130,7 +134,8 @@ func executeFlow(flow string, data []byte) (string, error) {
 // pauseRequest pause a request
 func pauseRequest(flow string, requestID string) error {
 	fs := &goflow3.FlowService{
-		RedisURL: getRedisAddr(),
+		RedisURL:      getRedisAddr(),
+		RedisPassword: getRedisPassword(),
 	}
 
 	err := fs.Pause(flow, requestID)
@@ -144,7 +149,8 @@ func pauseRequest(flow string, requestID string) error {
 // resumeRequest resumes a request
 func resumeRequest(flow string, requestID string) error {
 	fs := &goflow3.FlowService{
-		RedisURL: getRedisAddr(),
+		RedisURL:      getRedisAddr(),
+		RedisPassword: getRedisPassword(),
 	}
 
 	err := fs.Resume(flow, requestID)
@@ -158,7 +164,8 @@ func resumeRequest(flow string, requestID string) error {
 // stopRequest stops a request
 func stopRequest(flow string, requestID string) error {
 	fs := &goflow3.FlowService{
-		RedisURL: getRedisAddr(),
+		RedisURL:      getRedisAddr(),
+		RedisPassword: getRedisPassword(),
 	}
 
 	err := fs.Stop(flow, requestID)
@@ -171,10 +178,12 @@ func stopRequest(flow string, requestID string) error {
 
 func getRDB() *redis.Client {
 	addr := getRedisAddr()
+	password := getRedisPassword()
 	if rdb == nil {
 		rdb = redis.NewClient(&redis.Options{
-			Addr: addr,
-			DB:   0,
+			Addr:     addr,
+			Password: password,
+			DB:       0,
 		})
 	}
 	return rdb
@@ -185,6 +194,11 @@ func getRedisAddr() string {
 	if addr == "" {
 		addr = "localhost:6379"
 	}
+	return addr
+}
+
+func getRedisPassword() string {
+	addr := os.Getenv("REDIS_PASSWORD")
 	return addr
 }
 

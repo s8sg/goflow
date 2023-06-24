@@ -1,7 +1,9 @@
 # Go-Flow  &nbsp; [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Start%20writing%20your%20distributed%20workflow%20in%20Golang%20with%20GoFlow&url=https://github.com/s8sg/goflow&hashtags=golang,workflow,distributedcomputing,framework)
 
-![Build](https://github.com/s8sg/goflow/workflows/GO-Flow-Build/badge.svg) 
 [![GoDoc](https://godoc.org/github.com/s8sg/goflow?status.svg)](https://godoc.org/github.com/s8sg/goflow)
+![Build](https://github.com/s8sg/goflow/workflows/GO-Flow-Build/badge.svg) 
+[![Go Report Card](https://goreportcard.com/badge/github.com/s8sg/goflow)](https://goreportcard.com/report/github.com/s8sg/goflow)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 
 ![Gopher staring_at flow](doc/goflow-gopher.png)
@@ -10,6 +12,13 @@ A Golang based high performance, scalable and distributed workflow framework
 
 It allows to programmatically author distributed workflow as Directed Acyclic Graph (DAG) of tasks. 
 GoFlow executes your tasks on an array of workers by uniformly distributing the loads 
+
+## Stability and Compatibility
+
+**Status**: The library is currently undergoing **heavy development** with frequent, breaking API changes.
+
+> ☝️ **Important Note**: Current major version is zero (`v0.x.x`) to accommodate rapid development and fast iteration. The public API could change without a major version update before `v1.0.0` release.
+
 
 ## Install It 
 Install GoFlow
@@ -80,7 +89,7 @@ go build -o goflow
 
 ### Using curl
 ```sh
-curl -d hallo localhost:8080/myflow
+curl -d hallo localhost:8080/flow/myflow
 ```
 
 ### Using Client

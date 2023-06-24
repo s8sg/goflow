@@ -2,6 +2,7 @@ package eventhandler
 
 import (
 	"fmt"
+	"github.com/s8sg/goflow/core/sdk"
 )
 
 // implements core.EventHandler
@@ -26,6 +27,16 @@ func (eh *GoFlowEventHandler) Init() error {
 		return fmt.Errorf("failed to init request Tracer, error %v", err)
 	}
 	return nil
+}
+
+func (eh *GoFlowEventHandler) Copy() (sdk.EventHandler, error) {
+
+	newHandler := &GoFlowEventHandler{}
+	newHandler.TraceURI = eh.TraceURI
+	newHandler.CurrentNodeID = eh.CurrentNodeID
+	newHandler.Header = eh.Header
+
+	return newHandler, nil
 }
 
 func (eh *GoFlowEventHandler) ReportRequestStart(requestID string) {
