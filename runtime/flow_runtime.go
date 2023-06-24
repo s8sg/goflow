@@ -25,6 +25,7 @@ import (
 
 type FlowRuntime struct {
 	Flows                   map[string]FlowDefinitionHandler
+	ExecFlows               map[string]FlowSnapshot
 	OpenTracingUrl          string
 	RedisURL                string
 	RedisPassword           string
@@ -40,8 +41,8 @@ type FlowRuntime struct {
 	EnableMonitoring        bool
 	RetryQueueCount         int
 	DebugEnabled            bool
-
-	eventHandler sdk.EventHandler
+	GarbageCollectionPeriod time.Duration
+	eventHandler            sdk.EventHandler
 
 	taskQueues map[string]rmq.Queue
 	srv        *http.Server
@@ -87,13 +88,13 @@ func (fRuntime *FlowRuntime) Init() error {
 		DB:   0,
 	})
 
-	fRuntime.stateStore, err = initStateStore(fRuntime.RedisURL)
+	fRuntime.stateStore, err = initStateStore(fRuntime.RedisURL, fRuntime.RedisPassword)
 	if err != nil {
 		return fmt.Errorf("failed to initialize the StateStore, %v", err)
 	}
 
 	if fRuntime.DataStore == nil {
-		fRuntime.DataStore, err = initDataStore(fRuntime.RedisURL)
+		fRuntime.DataStore, err = initDataStore(fRuntime.RedisURL, fRuntime.RedisPassword)
 		if err != nil {
 			return fmt.Errorf("failed to initialize the StateStore, %v", err)
 		}
@@ -111,10 +112,11 @@ func (fRuntime *FlowRuntime) Init() error {
 }
 
 func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Executor, error) {
-	flowHandler, ok := fRuntime.Flows[req.FlowName]
+	fSnapshot, ok := fRuntime.ExecFlows[req.RequestID]
 	if !ok {
 		return nil, fmt.Errorf("could not find handler for flow %s", req.FlowName)
 	}
+	flowHandler := fSnapshot.Handler
 	ex := &FlowExecutor{
 		StateStore:              fRuntime.stateStore,
 		RequestAuthSharedSecret: fRuntime.RequestAuthSharedSecret,
@@ -244,7 +246,7 @@ func (fRuntime *FlowRuntime) StartServer() error {
 		Addr:           fmt.Sprintf(":%d", fRuntime.ServerPort),
 		ReadTimeout:    fRuntime.ReadTimeout,
 		WriteTimeout:   fRuntime.WriteTimeout,
-		Handler:        router(fRuntime),
+		Handler:        Router(fRuntime),
 		MaxHeaderBytes: 1 << 20, // Max header of 1MB
 	}
 
@@ -345,6 +347,8 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 		}
 		flowDetails[flowID] = dag
 	}
+	fRuntime.ExecFlows = make(map[string]FlowSnapshot)
+
 	err := fRuntime.saveWorkerDetails(worker)
 	if err != nil {
 		return fmt.Errorf("failed to register worker details, %v", err)
@@ -368,6 +372,7 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 		return fmt.Errorf("failed to start runtime, %v", err)
 	}
 
+	go fRuntime.gcWorker()
 	<-gocron.Start()
 
 	return fmt.Errorf("[goflow] runtime stopped")
@@ -582,4 +587,35 @@ func getFlowDefinition(handler FlowDefinitionHandler) (string, error) {
 func getNewId() string {
 	guid := xid.New()
 	return guid.String()
+}
+
+// gcWorker starts the garbage collection worker
+func (fRuntime *FlowRuntime) gcWorker() {
+	for {
+		time.Sleep(fRuntime.GarbageCollectionPeriod)
+		fRuntime.gc()
+	}
+}
+
+// gc checks the state of the flow in stateStore and removes it from ExecFlows if it is finished
+func (fRuntime *FlowRuntime) gc() {
+	// Loop ExecFlows and check the state of the flow
+	for requestId, snapshot := range fRuntime.ExecFlows {
+		redisKey := fmt.Sprintf("core.%s.%s.request-state", snapshot.FlowName, requestId)
+		state, err := fRuntime.stateStore.Get(redisKey)
+		if err != nil {
+			if strings.Contains(err.Error(), "nil") {
+				// The flow is finished
+				delete(fRuntime.ExecFlows, requestId)
+				log.Printf("removed flow %s from ExecFlows", requestId)
+			} else {
+				log.Printf("failed to get state from redis: %s", err)
+			}
+		}
+		if state == "FINISHED" {
+			// Remove the flow from ExecFlows
+			delete(fRuntime.ExecFlows, requestId)
+			log.Printf("removed flow %s from ExecFlows", requestId)
+		}
+	}
 }

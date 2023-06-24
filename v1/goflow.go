@@ -11,6 +11,7 @@ import (
 type FlowService struct {
 	Port                    int
 	RedisURL                string
+	RedisPassword           string
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	WorkerConcurrency       int
@@ -22,9 +23,9 @@ type FlowService struct {
 	DataStore               sdk.DataStore
 	Logger                  sdk.Logger
 	EnableMonitoring        bool
-	DebugEnabled			bool
-
-	runtime *runtime.FlowRuntime
+	DebugEnabled            bool
+	GarbageCollectionPeriod time.Duration
+	runtime                 *runtime.FlowRuntime
 }
 
 type Request struct {
