@@ -780,6 +780,24 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 	currentNode, _ := pipeline.GetCurrentNodeDag()
 	nextNodes := currentNode.Children()
 
+	if !fexec.isActive() {
+		if fexec.hasFinished() {
+			// Perform Graceful stop
+			// Cleanup data and state for failure
+			if fexec.stateStore != nil {
+				fexec.stateStore.Cleanup()
+			}
+			fexec.dataStore.Cleanup()
+
+			if fexec.notifyChan != nil {
+				fexec.notifyChan <- fexec.id
+			}
+		}
+
+		// if the pipeline is not active, don't forward the request
+		return []byte(""), nil
+	}
+
 	for _, node := range nextNodes {
 
 		var intermediateData []byte
