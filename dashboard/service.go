@@ -14,10 +14,14 @@ import (
 
 var rdb *redis.Client
 
+const (
+	FlowKeyInitial = "goflow.flow"
+)
+
 // listGoFLows get list of go-flows
 func listGoFLows() ([]*Flow, error) {
 	rdb = getRDB()
-	command := rdb.Keys("goflow-flow:*")
+	command := rdb.Keys(FlowKeyInitial + ".*")
 	rdb.Process(command)
 	flowKeys, err := command.Result()
 	if err != nil {
@@ -41,7 +45,7 @@ func listGoFLows() ([]*Flow, error) {
 // getDot request to dot-generator for the dag dot graph
 func getDot(flowName string) (string, error) {
 	rdb = getRDB()
-	command := rdb.Get("goflow-flow:" + flowName)
+	command := rdb.Get(FlowKeyInitial + "." + flowName)
 	rdb.Process(command)
 	definition, err := command.Result()
 	if err != nil {

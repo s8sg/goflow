@@ -7,6 +7,7 @@ import (
 	runtimePkg "github.com/s8sg/goflow/core/runtime"
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/runtime"
+	"github.com/s8sg/goflow/operation"
 )
 
 type FlowService struct {
@@ -18,6 +19,7 @@ type FlowService struct {
 	WorkerConcurrency       int
 	RetryCount              int
 	Flows                   map[string]runtime.FlowDefinitionHandler
+	Workloads               map[string]operation.Modifier
 	RequestReadTimeout      time.Duration
 	RequestWriteTimeout     time.Duration
 	OpenTraceUrl            string
@@ -160,6 +162,28 @@ func (fs *FlowService) Stop(flowName string, requestId string) error {
 	return nil
 }
 
+
+func (fs *FlowService) RegisterWorkload(workloadName string, handler operation.Modifier) error {
+	if workloadName == "" {
+		return fmt.Errorf("workload-name must not be empty")
+	}
+	if handler == nil {
+		return fmt.Errorf("handler must not be nil")
+	}
+
+	if fs.Workloads == nil {
+		fs.Workloads = make(map[string]operation.Modifier)
+	}
+
+	if fs.Workloads[workloadName] != nil {
+		return fmt.Errorf("duplicate workload registration, workload-name must be unique for each workload")
+	}
+
+	fs.Workloads[workloadName] = handler
+
+	return nil
+}
+
 func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionHandler) error {
 	if flowName == "" {
 		return fmt.Errorf("flow-name must not be empty")
@@ -173,7 +197,7 @@ func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionH
 	}
 
 	if fs.Flows[flowName] != nil {
-		return fmt.Errorf("flow-name must be unique for each flow")
+		return fmt.Errorf("duplicate flow registration, flow-name must be unique for each flow")
 	}
 
 	fs.Flows[flowName] = handler
@@ -271,6 +295,33 @@ func (fs *FlowService) StartWorker() error {
 	return fmt.Errorf("worker has stopped, error: %v", err)
 }
 
+func (fs *FlowService) StartWorkLoad() error {
+	fs.ConfigureDefault()
+	fs.runtime = &runtime.FlowRuntime{
+	    Workloads:               fs.Workloads,
+		OpenTracingUrl:          fs.OpenTraceUrl,
+		RedisURL:                fs.RedisURL,
+		RedisPassword:           fs.RedisPassword,
+		DataStore:               fs.DataStore,
+		Logger:                  fs.Logger,
+		Concurrency:             fs.WorkerConcurrency,
+		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
+		RequestAuthEnabled:      fs.RequestAuthEnabled,
+		EnableMonitoring:        fs.EnableMonitoring,
+		RetryQueueCount:         fs.RetryCount,
+		DebugEnabled:            fs.DebugEnabled,
+	}
+	errorChan := make(chan error)
+	defer close(errorChan)
+	if err := fs.initRuntime(); err != nil {
+		return err
+	}
+	go fs.workloadRuntimeWorker(errorChan)
+	go fs.workloadQueueWorker(errorChan)
+	err := <-errorChan
+	return fmt.Errorf("workload has stopped, error: %v", err)
+}
+
 func (fs *FlowService) ConfigureDefault() {
 	if fs.OpenTraceUrl == "" {
 		fs.OpenTraceUrl = DefaultTraceUrl
@@ -305,9 +356,19 @@ func (fs *FlowService) runtimeWorker(errorChan chan error) {
 	errorChan <- fmt.Errorf("runtime has stopped, error: %v", err)
 }
 
+func (fs *FlowService) workloadRuntimeWorker(errorChan chan error) {
+	err := fs.runtime.StartWorkloadRuntime()
+	errorChan <- fmt.Errorf("runtime has stopped, error: %v", err)
+}
+
 func (fs *FlowService) queueWorker(errorChan chan error) {
 	err := fs.runtime.StartQueueWorker(errorChan)
 	errorChan <- fmt.Errorf("worker has stopped, error: %v", err)
+}
+
+func (fs *FlowService) workloadQueueWorker(errorChan chan error) {
+	err := fs.runtime.StartWorkloadQueueWorker(errorChan)
+	errorChan <- fmt.Errorf("workload has stopped, error: %v", err)
 }
 
 func (fs *FlowService) server(errorChan chan error) {
