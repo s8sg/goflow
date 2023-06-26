@@ -44,9 +44,10 @@ func (fexp *FlowExporter) Export() ([]byte, error) {
 		return nil, fmt.Errorf("Failed to define flow, %v", err)
 	}
 
-	definition := sdk.GetPipelineDefinition(fexp.flow)
+	// Get DAG json definition
+	definition, _ := fexp.flow.Dag.GetDefinitionJson()
 
-	return []byte(definition), nil
+	return definition, nil
 }
 
 // CreateFlowExporter initiate a FlowExporter with a provided Executor

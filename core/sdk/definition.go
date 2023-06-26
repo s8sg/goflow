@@ -1,9 +1,5 @@
 package sdk
 
-import (
-	"encoding/json"
-)
-
 type DagExporter struct {
 	Id               string                   `json:"id"`
 	StartNode        string                   `json:"start-node"`
@@ -127,21 +123,4 @@ func exportDag(exportDag *DagExporter, dag *Dag) {
 		exportNode(exportedNode, node)
 		exportDag.Nodes[nodeId] = exportedNode
 	}
-}
-
-// GetPipelineDefinition generate pipeline DAG definition as a json
-func GetPipelineDefinition(pipeline *Pipeline) string {
-	root := &DagExporter{}
-
-	// Validate the dag
-	root.IsValid = true
-	err := pipeline.Dag.Validate()
-	if err != nil {
-		root.IsValid = false
-		root.ValidationError = err.Error()
-	}
-
-	exportDag(root, pipeline.Dag)
-	encoded, _ := json.MarshalIndent(root, "", "    ")
-	return string(encoded)
 }
