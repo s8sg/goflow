@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -339,6 +340,39 @@ func (this *Dag) GetNodes(dynamicOption string) []string {
 // IsExecutionFlow check if a dag doesn't use intermediate data
 func (this *Dag) IsExecutionFlow() bool {
 	return this.executionFlow
+}
+
+// GetDefinitionJson generate DAG definition as a json
+func (dag *Dag) GetDefinitionJson() ([]byte, error) {
+	root := &DagExporter{}
+
+	// Validate the dag
+	root.IsValid = true
+	err := dag.Validate()
+	if err != nil {
+		root.IsValid = false
+		root.ValidationError = err.Error()
+	}
+
+	exportDag(root, dag)
+	encoded, err := json.MarshalIndent(root, "", "    ")
+	return encoded, err
+}
+
+// GetDefinition represent DAG definition with exporter
+func (dag *Dag) GetDefinition() (*DagExporter, error) {
+	root := &DagExporter{}
+
+	// Validate the dag
+	root.IsValid = true
+	err := dag.Validate()
+	if err != nil {
+		root.IsValid = false
+		root.ValidationError = err.Error()
+	}
+
+	exportDag(root, dag)
+	return root, err
 }
 
 // inSlice check if a node belongs in a slice
