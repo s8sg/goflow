@@ -133,6 +133,8 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 	return ex, err
 }
 
+// AppendFlows appends flows to the runtime
+// If the queue worker not started or the flow is already registered, it returns an error
 func (fRuntime *FlowRuntime) AppendFlows(flows map[string]FlowDefinitionHandler) error {
 
 	if reflect.ValueOf(fRuntime.rmqConnection).IsNil() {
