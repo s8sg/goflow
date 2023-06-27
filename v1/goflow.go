@@ -181,7 +181,12 @@ func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionH
 	return nil
 }
 
+// AppendFlows registers flows dynamically after the service has started
 func (fs *FlowService) AppendFlows(flows map[string]runtime.FlowDefinitionHandler) error {
+	if fs.runtime == nil {
+		return fmt.Errorf("flow service has not been started yet")
+	}
+
 	err := fs.runtime.AppendFlows(flows)
 	if err != nil {
 		return fmt.Errorf("failed to append flows: %s", err)
