@@ -181,6 +181,15 @@ func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionH
 	return nil
 }
 
+func (fs *FlowService) AppendFlows(flows map[string]runtime.FlowDefinitionHandler) error {
+	err := fs.runtime.AppendFlows(flows)
+	if err != nil {
+		return fmt.Errorf("failed to append flows: %s", err)
+	}
+
+	return nil
+}
+
 func (fs *FlowService) Start() error {
 	if len(fs.Flows) == 0 {
 		return fmt.Errorf("must register atleast one flow")
