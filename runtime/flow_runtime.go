@@ -291,7 +291,7 @@ func (fRuntime *FlowRuntime) StopServer() error {
 
 // StartQueueWorker starts listening for request in queue
 func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
-	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	connection, err := OpenConnectionV2("goflow", "tcp", fRuntime.RedisURL, fRuntime.RedisPassword, 0, nil)
 	if err != nil {
 		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
