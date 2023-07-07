@@ -13,6 +13,7 @@ type FlowService struct {
 	Port                    int
 	RedisURL                string
 	RedisPassword           string
+	RedisDB                 int
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	WorkerConcurrency       int
@@ -54,6 +55,7 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -86,6 +88,7 @@ func (fs *FlowService) Pause(flowName string, requestId string) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -115,6 +118,7 @@ func (fs *FlowService) Resume(flowName string, requestId string) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -144,6 +148,7 @@ func (fs *FlowService) Stop(flowName string, requestId string) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -191,6 +196,7 @@ func (fs *FlowService) Start() error {
 		OpenTracingUrl:          fs.OpenTraceUrl,
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		DataStore:               fs.DataStore,
 		Logger:                  fs.Logger,
 		ServerPort:              fs.Port,
@@ -222,6 +228,7 @@ func (fs *FlowService) StartServer() error {
 		OpenTracingUrl:          fs.OpenTraceUrl,
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		DataStore:               fs.DataStore,
 		Logger:                  fs.Logger,
 		ServerPort:              fs.Port,
@@ -251,6 +258,7 @@ func (fs *FlowService) StartWorker() error {
 		OpenTracingUrl:          fs.OpenTraceUrl,
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		DataStore:               fs.DataStore,
 		Logger:                  fs.Logger,
 		Concurrency:             fs.WorkerConcurrency,
