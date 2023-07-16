@@ -238,7 +238,6 @@ func (fs *FlowService) StartServer() error {
 	if err := fs.initRuntime(); err != nil {
 		return err
 	}
-	go fs.runtimeWorker(errorChan)
 	go fs.server(errorChan)
 	err := <-errorChan
 	return fmt.Errorf("server has stopped, error: %v", err)

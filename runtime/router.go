@@ -32,6 +32,7 @@ func Router(fRuntime *FlowRuntime) http.Handler {
 	router.POST("flow/:"+FlowNameParamName+"/request/resume:"+RequestIdParamName, resumeRequestHandler(fRuntime))
 	router.POST("flow/:"+FlowNameParamName+"/request/state:"+RequestIdParamName, requestStateHandler(fRuntime))
 	router.POST("flow/:"+FlowNameParamName+"/request/list", requestListHandler(fRuntime))
+	// TODO: Add health check endpoint
 
 	return router
 }
