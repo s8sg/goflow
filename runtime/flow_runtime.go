@@ -19,11 +19,13 @@ import (
 	"github.com/s8sg/goflow/core/sdk/exporter"
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
+	"github.com/s8sg/goflow/operation"
 	"gopkg.in/redis.v5"
 )
 
 type FlowRuntime struct {
 	Flows                   map[string]FlowDefinitionHandler
+	Workloads               map[string]operation.Modifier
 	OpenTracingUrl          string
 	RedisURL                string
 	RedisPassword           string
@@ -42,9 +44,10 @@ type FlowRuntime struct {
 
 	eventHandler sdk.EventHandler
 
-	taskQueues map[string]rmq.Queue
-	srv        *http.Server
-	rdb        *redis.Client
+	taskQueues     map[string]rmq.Queue
+	workloadQueues map[string]rmq.Queue
+	srv            *http.Server
+	rdb            *redis.Client
 }
 
 type Worker struct {
@@ -61,12 +64,17 @@ type Task struct {
 	RawQuery    string              `json:"raw_query"`
 	Query       map[string][]string `json:"query"`
 	RequestType string              `json:"request_type"`
+
+	WorkLoadName string             `json:"workload_name"`
+
 }
 
 const (
 	InternalRequestQueueInitial = "goflow-internal-request"
-	FlowKeyInitial              = "goflow-flow"
-	WorkerKeyInitial            = "goflow-worker"
+	WorkloadRequestQueueInitial = "goflow-workload-request"
+	FlowKeyInitial              = "goflow.flow"
+	WorkerKeyInitial            = "goflow.worker"
+	WorkloadKeyInitial          = "goflow.workload"
 
 	GoFlowRegisterInterval = 4
 	RDBKeyTimeOut          = 10
@@ -329,6 +337,43 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 	return err
 }
 
+// StartWorkloadQueueWorker starts listening for request in queue
+func (fRuntime *FlowRuntime) StartWorkloadQueueWorker(errorChan chan error) error {
+	connection, err := OpenConnectionV2("goflow", "tcp", fRuntime.RedisURL, fRuntime.RedisPassword, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate connection, error %v", err)
+	}
+
+	fRuntime.taskQueues = make(map[string]rmq.Queue)
+	for workloadName := range fRuntime.Workloads {
+		workloadQueue, err := connection.OpenQueue(fRuntime.workloadRequestQueueId(workloadName))
+		if err != nil {
+			return fmt.Errorf("failed to open queue, error %v", err)
+		}
+
+		err = workloadQueue.StartConsuming(10, time.Second)
+		if err != nil {
+			return fmt.Errorf("failed to start workload consumer taskQueue, error %v", err)
+		}
+		fRuntime.workloadQueues[workloadName] = workloadQueue
+
+		index := 0
+		for index < fRuntime.Concurrency {
+			_, err := workloadQueue.AddConsumer(fmt.Sprintf("workload-request-consumer-%d", index), fRuntime)
+			if err != nil {
+				return fmt.Errorf("failed to add consumer, error %v", err)
+			}
+			index++
+		}
+	}
+
+	fRuntime.Logger.Log("[goflow] workload queue worker started successfully")
+
+	err = <-errorChan
+	<-connection.StopAllConsuming()
+	return err
+}
+
 // StartRuntime starts the runtime
 func (fRuntime *FlowRuntime) StartRuntime() error {
 	worker := &Worker{
@@ -372,6 +417,28 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	<-gocron.Start()
 
 	return fmt.Errorf("[goflow] runtime stopped")
+}
+
+// StartWorkloadRuntime starts the runtime
+func (fRuntime *FlowRuntime) StartWorkloadRuntime() error {
+	err := fRuntime.saveWorkLoadDetails(fRuntime.Workloads)
+	if err != nil {
+		return fmt.Errorf("failed to register worker details, %v", err)
+	}
+	err = gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
+		var err error
+		err = fRuntime.saveWorkLoadDetails(fRuntime.Workloads)
+		if err != nil {
+			log.Printf("failed to register worker details, %v", err)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to start runtime, %v", err)
+	}
+
+	<-gocron.Start()
+
+	return fmt.Errorf("[goflow] workload runtime stopped")
 }
 
 func (fRuntime *FlowRuntime) EnqueuePartialRequest(pr *runtime.Request) error {
@@ -524,13 +591,26 @@ func (fRuntime *FlowRuntime) internalRequestQueueId(flowName string) string {
 	return fmt.Sprintf("%s:%s", InternalRequestQueueInitial, flowName)
 }
 
+func (fRuntime *FlowRuntime) workloadRequestQueueId(workloadName string) string {
+	return fmt.Sprintf("%s:%s", WorkloadRequestQueueInitial, workloadName)
+}
+
 func (fRuntime *FlowRuntime) requestQueueId(flowName string) string {
 	return flowName
 }
 
+func (fRuntime *FlowRuntime) saveWorkLoadDetails(workloads map[string]operation.Modifier) error {
+	rdb := fRuntime.rdb
+	for workloadName, _ := range workloads {
+		key := fmt.Sprintf(WorkloadKeyInitial+".%s", workloadName)
+		rdb.Set(key, workloadName, time.Second*RDBKeyTimeOut)
+	}
+	return nil
+}
+
 func (fRuntime *FlowRuntime) saveWorkerDetails(worker *Worker) error {
 	rdb := fRuntime.rdb
-	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
+	key := fmt.Sprintf(WorkerKeyInitial+".%s", worker.ID)
 	value := marshalWorker(worker)
 	rdb.Set(key, value, time.Second*RDBKeyTimeOut)
 	return nil
@@ -539,7 +619,7 @@ func (fRuntime *FlowRuntime) saveWorkerDetails(worker *Worker) error {
 func (fRuntime *FlowRuntime) saveFlowDetails(flows map[string]string) error {
 	rdb := fRuntime.rdb
 	for flowId, definition := range flows {
-		key := fmt.Sprintf("%s:%s", FlowKeyInitial, flowId)
+		key := fmt.Sprintf(FlowKeyInitial+".%s", flowId)
 		rdb.Set(key, definition, time.Second*RDBKeyTimeOut)
 	}
 	return nil

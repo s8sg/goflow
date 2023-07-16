@@ -14,11 +14,6 @@ type RedisStateStore struct {
 	RetryCount int
 }
 
-// Update Compare and Update a valuer
-type Incrementer interface {
-	Incr(key string, value int64) (int64, error)
-}
-
 func GetRedisStateStore(redisUri string, password string) (sdk.StateStore, error) {
 	stateStore := &RedisStateStore{}
 
@@ -74,7 +69,7 @@ func (this *RedisStateStore) Update(key string, oldValue string, newValue string
 }
 
 // Update Compare and Update a valuer
-func (this *RedisStateStore) Incr(key string, value int64) (int64, error) {
+func (this *RedisStateStore) IncrementBy(key string, value int64) (int64, error) {
 	key = this.KeyPath + "." + key
 	client := this.rds
 	return client.IncrBy(key, value).Result()

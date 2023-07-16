@@ -187,7 +187,7 @@ func (fexec *FlowExecutor) getDynamicBranchOptions(nodeUniqueId string) ([]strin
 func (fexec *FlowExecutor) incrementCounter(counter string, incrementBy int) (int, error) {
 	var serr error
 	for i := 0; i < counterUpdateRetryCount; i++ {
-		count, err := fexec.stateStore.Incr(counter, int64(incrementBy))
+		count, err := fexec.stateStore.IncrementBy(counter, int64(incrementBy))
 		if err != nil {
 			serr = fmt.Errorf("failed to update counter %s, error %v", counter, err)
 			continue
