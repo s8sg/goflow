@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/adjust/rmq/v4"
@@ -40,12 +41,14 @@ type FlowRuntime struct {
 	EnableMonitoring        bool
 	RetryQueueCount         int
 	DebugEnabled            bool
+	workerMode              bool
 
 	eventHandler sdk.EventHandler
 
-	taskQueues map[string]rmq.Queue
-	srv        *http.Server
-	rdb        *redis.Client
+	taskQueues    map[string]rmq.Queue
+	srv           *http.Server
+	rdb           *redis.Client
+	rmqConnection rmq.Connection
 }
 
 type Worker struct {
@@ -100,6 +103,11 @@ func (fRuntime *FlowRuntime) Init() error {
 		}
 	}
 
+	fRuntime.rmqConnection, err = OpenConnectionV2("goflow", "tcp", fRuntime.RedisURL, fRuntime.RedisPassword, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate rmq connection, error %v", err)
+	}
+
 	if fRuntime.Logger == nil {
 		fRuntime.Logger = &log2.StdErrLogger{}
 	}
@@ -130,6 +138,84 @@ func (fRuntime *FlowRuntime) CreateExecutor(req *runtime.Request) (executor.Exec
 	}
 	err := ex.Init(req)
 	return ex, err
+}
+
+// Register flows to the runtime
+// If the flow is already registered, it returns an error
+func (fRuntime *FlowRuntime) Register(flows map[string]FlowDefinitionHandler) error {
+	if reflect.ValueOf(fRuntime.rmqConnection).IsNil() {
+		return fmt.Errorf("unable to register flows, rmq connection not initialized")
+	}
+
+	if len(flows) == 0 {
+		return nil
+	}
+
+	var flowNames []string
+	for flowName := range flows {
+		if _, ok := fRuntime.Flows[flowName]; ok {
+			return fmt.Errorf("flow %s already registered", flowName)
+		}
+
+		flowNames = append(flowNames, flowName)
+	}
+
+	// register flows to runtime
+	for flowName, flowHandler := range flows {
+		fRuntime.Flows[flowName] = flowHandler
+	}
+
+	// initialize task queues when in worker mode
+	if fRuntime.workerMode {
+		err := fRuntime.initializeTaskQueues(&fRuntime.rmqConnection, flows)
+		if err != nil {
+			return fmt.Errorf(fmt.Sprintf("failed to initialize task queues for flows %v, error %v", flowNames, err))
+		}
+	}
+
+	fRuntime.Logger.Log(fmt.Sprintf("[goflow] queue workers for flows %v started successfully", flowNames))
+
+	return nil
+}
+
+// EnterWorkerMode put the runtime into worker mode
+func (fRuntime *FlowRuntime) EnterWorkerMode() error {
+	if reflect.ValueOf(fRuntime.rmqConnection).IsNil() {
+		return fmt.Errorf("unable to enter worker mode, rmq connection not initialized")
+	}
+
+	if fRuntime.workerMode {
+		// already in worker mode
+		return nil
+	}
+	fRuntime.workerMode = true
+
+	err := fRuntime.initializeTaskQueues(&fRuntime.rmqConnection, fRuntime.Flows)
+	if err != nil {
+		return fmt.Errorf("failed to enter worker mode, error: " + err.Error())
+	}
+
+	return nil
+}
+
+// ExitWorkerMode take the runtime out of worker mode
+func (fRuntime *FlowRuntime) ExitWorkerMode() error {
+	if reflect.ValueOf(fRuntime.rmqConnection).IsNil() {
+		return nil
+	}
+
+	if !fRuntime.workerMode {
+		// already not in worker mode
+		return nil
+	}
+	fRuntime.workerMode = false
+
+	err := fRuntime.cleanTaskQueues()
+	if err != nil {
+		return fmt.Errorf("failed to exit worker mode, error: " + err.Error())
+	}
+
+	return nil
 }
 
 // OpenConnection opens and returns a new connection
@@ -261,109 +347,55 @@ func (fRuntime *FlowRuntime) StopServer() error {
 	return nil
 }
 
-// StartQueueWorker starts listening for request in queue
-func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
-	connection, err := OpenConnectionV2("goflow", "tcp", fRuntime.RedisURL, fRuntime.RedisPassword, fRuntime.RedisDB, nil)
-	if err != nil {
-		return fmt.Errorf("failed to initiate connection, error %v", err)
-	}
-
-	fRuntime.taskQueues = make(map[string]rmq.Queue)
-	for flowName := range fRuntime.Flows {
-		taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
-		if err != nil {
-			return fmt.Errorf("failed to open queue, error %v", err)
-		}
-
-		var pushQueues = make([]rmq.Queue, fRuntime.RetryQueueCount)
-		var previousQueue = taskQueue
-
-		index := 0
-		for index < fRuntime.RetryQueueCount {
-			pushQueues[index], err = connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-" + fmt.Sprint(index))
-			if err != nil {
-				return fmt.Errorf("failed to open push queue, error %v", err)
-			}
-			previousQueue.SetPushQueue(pushQueues[index])
-			previousQueue = pushQueues[index]
-			index++
-		}
-
-		err = taskQueue.StartConsuming(10, time.Second)
-		if err != nil {
-			return fmt.Errorf("failed to start consumer taskQueue, error %v", err)
-		}
-		fRuntime.taskQueues[flowName] = taskQueue
-
-		index = 0
-		for index < fRuntime.RetryQueueCount {
-			err = pushQueues[index].StartConsuming(10, time.Second)
-			if err != nil {
-				return fmt.Errorf("failed to start consumer pushQ1, error %v", err)
-			}
-			index++
-		}
-
-		index = 0
-		for index < fRuntime.Concurrency {
-			_, err := taskQueue.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
-			if err != nil {
-				return fmt.Errorf("failed to add consumer, error %v", err)
-			}
-			index++
-		}
-
-		index = 0
-		for index < fRuntime.RetryQueueCount {
-			_, err = pushQueues[index].AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
-			if err != nil {
-				return fmt.Errorf("failed to add consumer, error %v", err)
-			}
-			index++
-		}
-	}
-
-	fRuntime.Logger.Log("[goflow] queue worker started successfully")
-
-	err = <-errorChan
-	<-connection.StopAllConsuming()
-	return err
-}
-
 // StartRuntime starts the runtime
 func (fRuntime *FlowRuntime) StartRuntime() error {
 	worker := &Worker{
 		ID:          getNewId(),
-		Flows:       make([]string, 0, len(fRuntime.Flows)),
 		Concurrency: fRuntime.Concurrency,
 	}
-	// Get the flow details for each flow
-	flowDetails := make(map[string]string)
-	for flowID, defHandler := range fRuntime.Flows {
-		worker.Flows = append(worker.Flows, flowID)
-		dag, err := getFlowDefinition(defHandler)
-		if err != nil {
-			return fmt.Errorf("failed to start runtime, dag export failed, error %v", err)
+
+	registerDetails := func() error {
+		// Get the flow details for each flow
+		flowDetails := make(map[string]string)
+		for flowID, defHandler := range fRuntime.Flows {
+			worker.Flows = append(worker.Flows, flowID)
+			dag, err := getFlowDefinition(defHandler)
+			if err != nil {
+				return fmt.Errorf("failed to start runtime, dag export failed, error %v", err)
+			}
+			flowDetails[flowID] = dag
 		}
-		flowDetails[flowID] = dag
+
+		if fRuntime.workerMode {
+			err := fRuntime.saveWorkerDetails(worker)
+			if err != nil {
+				return fmt.Errorf("failed to register worker details, %v", err)
+			}
+		} else {
+			err := fRuntime.deleteWorkerDetails(worker)
+			if err != nil {
+				return fmt.Errorf("failed to deregister worker details, %v", err)
+			}
+		}
+
+		err := fRuntime.saveFlowDetails(flowDetails)
+		if err != nil {
+			return fmt.Errorf("failed to register flow details, %v", err)
+		}
+
+		return nil
 	}
-	err := fRuntime.saveWorkerDetails(worker)
+
+	err := registerDetails()
 	if err != nil {
-		return fmt.Errorf("failed to register worker details, %v", err)
+		log.Printf("failed to register details, %v", err)
+		return err
 	}
-	err = fRuntime.saveFlowDetails(flowDetails)
-	if err != nil {
-		return fmt.Errorf("failed to register worker details, %v", err)
-	}
+
 	err = gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
-		var err error
-		err = fRuntime.saveWorkerDetails(worker)
+		err := registerDetails()
 		if err != nil {
-			log.Printf("failed to register worker details, %v", err)
-		}
-		err = fRuntime.saveFlowDetails(flowDetails)
-		if err != nil {
-			log.Printf("failed to register worker details, %v", err)
+			log.Printf("failed to register details, %v", err)
 		}
 	})
 	if err != nil {
@@ -521,6 +553,81 @@ func (fRuntime *FlowRuntime) handleStopRequest(request *runtime.Request) error {
 	return nil
 }
 
+func (fRuntime *FlowRuntime) initializeTaskQueues(connection *rmq.Connection, flows map[string]FlowDefinitionHandler) error {
+
+	if fRuntime.taskQueues == nil {
+		fRuntime.taskQueues = make(map[string]rmq.Queue)
+	}
+
+	for flowName := range flows {
+		taskQueue, err := (*connection).OpenQueue(fRuntime.internalRequestQueueId(flowName))
+		if err != nil {
+			return fmt.Errorf("failed to open queue, error %v", err)
+		}
+
+		var pushQueues = make([]rmq.Queue, fRuntime.RetryQueueCount)
+		var previousQueue = taskQueue
+
+		index := 0
+		for index < fRuntime.RetryQueueCount {
+			pushQueues[index], err = (*connection).OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-" + fmt.Sprint(index))
+			if err != nil {
+				return fmt.Errorf("failed to open push queue, error %v", err)
+			}
+			previousQueue.SetPushQueue(pushQueues[index])
+			previousQueue = pushQueues[index]
+			index++
+		}
+
+		err = taskQueue.StartConsuming(10, time.Second)
+		if err != nil {
+			return fmt.Errorf("failed to start consumer taskQueue, error %v", err)
+		}
+		fRuntime.taskQueues[flowName] = taskQueue
+
+		index = 0
+		for index < fRuntime.RetryQueueCount {
+			err = pushQueues[index].StartConsuming(10, time.Second)
+			if err != nil {
+				return fmt.Errorf("failed to start consumer pushQ1, error %v", err)
+			}
+			index++
+		}
+
+		index = 0
+		for index < fRuntime.Concurrency {
+			_, err := taskQueue.AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
+			if err != nil {
+				return fmt.Errorf("failed to add consumer, error %v", err)
+			}
+			index++
+		}
+
+		index = 0
+		for index < fRuntime.RetryQueueCount {
+			_, err = pushQueues[index].AddConsumer(fmt.Sprintf("request-consumer-%d", index), fRuntime)
+			if err != nil {
+				return fmt.Errorf("failed to add consumer, error %v", err)
+			}
+			index++
+		}
+	}
+
+	return nil
+}
+
+func (fRuntime *FlowRuntime) cleanTaskQueues() error {
+
+	if !reflect.ValueOf(fRuntime.rmqConnection).IsNil() {
+		endChan := fRuntime.rmqConnection.StopAllConsuming()
+		<-endChan
+	}
+
+	fRuntime.taskQueues = map[string]rmq.Queue{}
+
+	return nil
+}
+
 func (fRuntime *FlowRuntime) internalRequestQueueId(flowName string) string {
 	return fmt.Sprintf("%s:%s", InternalRequestQueueInitial, flowName)
 }
@@ -534,6 +641,13 @@ func (fRuntime *FlowRuntime) saveWorkerDetails(worker *Worker) error {
 	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
 	value := marshalWorker(worker)
 	rdb.Set(key, value, time.Second*RDBKeyTimeOut)
+	return nil
+}
+
+func (fRuntime *FlowRuntime) deleteWorkerDetails(worker *Worker) error {
+	rdb := fRuntime.rdb
+	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
+	rdb.Del(key)
 	return nil
 }
 
