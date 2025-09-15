@@ -2,9 +2,10 @@ package eventhandler
 
 import (
 	"fmt"
-	"github.com/s8sg/goflow/core/runtime"
 	"net/http"
 	"sync"
+
+	"github.com/s8sg/goflow/core/runtime"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
