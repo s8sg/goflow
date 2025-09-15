@@ -300,7 +300,11 @@ func (this *Dag) Validate() error {
 		endNode := this.AddVertex(endNodeId, []Operation{blank})
 		for _, b := range endNodes {
 			// Create a edge
-			this.AddEdge(b.Id, endNodeId)
+			err := this.AddEdge(b.Id, endNodeId)
+			if err != nil {
+				this.validated = false
+				break
+			}
 			// mark the edge as execution dependency
 			b.AddForwarder(endNodeId, nil)
 		}

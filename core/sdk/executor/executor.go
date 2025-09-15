@@ -147,8 +147,8 @@ const (
 // log logs using logger if logging enabled
 func (fexec *FlowExecutor) log(str string, a ...interface{}) {
 	if fexec.executor.LoggingEnabled() {
-		str := fmt.Sprintf(str, a...)
-		fexec.logger.Log(str)
+		logStr := fmt.Sprintf(str, a...)
+		fexec.logger.Log(logStr)
 	}
 }
 
@@ -389,12 +389,13 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 
 // findCurrentNodeToExecute find right node to execute based on state
 func (fexec *FlowExecutor) findCurrentNodeToExecute() {
-	currentNode, currentDag := fexec.flow.GetCurrentNodeDag()
+	var currentDag *sdk.Dag = nil
+	currentNode, _ := fexec.flow.GetCurrentNodeDag()
 
 	fexec.log("[request `%s`] executing node %s\n", fexec.id, currentNode.GetUniqueId())
 
 	// recurse to the subdag - if a node is dynamic stop to evaluate it
-	for true {
+	for {
 		// break if request is dynamic
 		if currentNode.Dynamic() {
 			return
@@ -896,7 +897,8 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 		fexec.eventHandler.Flush()
 	}
 
-	fmt.Sprintf("[request `%s`] Failed, %v\n", fexec.id, err)
+	errStr := fmt.Sprintf("[request `%s`] Failed, %v\n", fexec.id, err)
+	fexec.log(errStr)
 }
 
 // getDagIntermediateData gets the intermediate data from earlier vertex
