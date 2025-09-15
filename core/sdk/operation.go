@@ -92,4 +92,3 @@ func (ops *BlankOperation) GetProperties() map[string][]string {
 func (ops *BlankOperation) Execute(data []byte, option map[string]interface{}) ([]byte, error) {
 	return data, nil
 }
- 

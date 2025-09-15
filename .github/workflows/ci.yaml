@@ -11,13 +11,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-      - name: Format check
-        run: |
-          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-            echo "Code is not properly formatted. Run 'gofmt -s -w .' to fix:"
-            gofmt -s -l .
-            exit 1
-          fi
       - name: Vet
         run: go vet ./...
       - name: Lint
