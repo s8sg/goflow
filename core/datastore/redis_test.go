@@ -15,10 +15,12 @@ func TestGetDatastore(t *testing.T) {
 	called := false
 	mockFactory := func(redisUri, password string) StorageClient {
 		called = true
-		// Create a redis.Client with a custom Ping method
 		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
 		client := mocks.NewMockStorageClient(ctrl)
+		// Simulate a ping error
+		pingCmd := redis.NewStatusCmd(context.Background())
+		pingCmd.SetErr(errors.New("mock ping error"))
+		client.EXPECT().Ping(gomock.Any()).Return(pingCmd)
 		return client
 	}
 
@@ -172,10 +174,17 @@ func TestDataStore_CopyStore(t *testing.T) {
 	defer ctrl.Finish()
 	client := mocks.NewMockStorageClient(ctrl)
 	ds := &DataStore{client: client, bucketName: "bucket"}
-	copy, err := ds.CopyStore()
+	copyIface, err := ds.CopyStore()
 	if err != nil {
 		t.Errorf("CopyStore() error = %v, want nil", err)
 	}
+
+	copy, ok := copyIface.(*DataStore)
+	if !ok {
+		t.Errorf("CopyStore() returned type %T, want *DataStore", copyIface)
+		return
+	}
+
 	if copy.bucketName != ds.bucketName {
 		t.Errorf("CopyStore() bucketName = %v, want %v", copy.bucketName, ds.bucketName)
 	}

@@ -20,4 +20,3 @@ type StorageClient interface {
 	Get(ctx context.Context, key string) *redis.StringCmd
 	Delete(ctx context.Context, keys ...string) *redis.IntCmd
 }
-

@@ -99,4 +99,3 @@ func (operation *GoFlowOperation) GetProperties() map[string][]string {
 
 	return result
 }
-

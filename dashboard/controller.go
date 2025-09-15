@@ -169,7 +169,7 @@ func flowRequestsPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	locationDepths := []*Location{
-		&Location{
+		{
 			Name: "Flow : " + flowName + "",
 			Link: "/flow/info?flow-name=" + flowName,
 		},
@@ -251,11 +251,11 @@ func flowRequestMonitorPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	locationDepths := []*Location{
-		&Location{
+		{
 			Name: "Flow : " + flowName + "",
 			Link: "/flow/info?flow-name=" + flowName,
 		},
-		&Location{
+		{
 			Name: "Requests",
 			Link: "/flow/requests?flow-name=" + flowName,
 		},

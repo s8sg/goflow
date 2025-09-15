@@ -1,12 +1,12 @@
+
 package statestore
 
 import (
-	"errors"
 	"fmt"
-
 	"github.com/go-redis/redis"
 	"github.com/s8sg/goflow/core/sdk"
 )
+
 
 // StateBackend abstracts the backend logic for statestore
 type StateBackend interface {
@@ -28,15 +28,6 @@ type StateStore struct {
 // Backend selection (default: redis)
 func NewStateStoreRedis(redisUri, password string) (*StateStore, error) {
 	backend, err := NewRedisBackend(redisUri, password)
-	if err != nil {
-		return nil, err
-	}
-	return &StateStore{backend: backend}, nil
-}
-
-// FoundationDB backend stub (to be implemented)
-func NewStateStoreFoundationDB(clusterFile string) (*StateStore, error) {
-	backend, err := NewFoundationDBBackend(clusterFile)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +104,7 @@ func (r *RedisBackend) Update(key, oldValue, newValue string) error {
 			return fmt.Errorf("unexpect error %v", err)
 		}
 		if value != oldValue {
-			return fmt.Errorf("Old value doesn't match for key %s", key)
+			return fmt.Errorf("old value doesn't match for key %s", key)
 		}
 		_, err = tx.Pipelined(func(pl redis.Pipeliner) error {
 			pl.Set(key, newValue, 0)
@@ -141,4 +132,14 @@ func (r *RedisBackend) Cleanup() error {
 }
 func (r *RedisBackend) CopyStore() (StateBackend, error) {
 	return &RedisBackend{KeyPath: r.KeyPath, rds: r.rds}, nil
+}
+
+
+// GetStateStore returns a StateStore using RedisBackend
+func GetStateStore(redisUri, password string) (*StateStore, error) {
+	backend, err := NewRedisBackend(redisUri, password)
+	if err != nil {
+		 return nil, err
+	}
+	return &StateStore{backend: backend}, nil
 }

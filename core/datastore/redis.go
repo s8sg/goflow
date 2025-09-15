@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/s8sg/goflow/core/sdk"
 )
 
 type ClientFactory func(redisUri, password string) StorageClient
@@ -136,6 +137,6 @@ func getPath(bucket, key string) string {
 	return fmt.Sprintf("%s.%s", bucket, fileName)
 }
 
-func (ds *DataStore) CopyStore() (*DataStore, error) {
+func (ds *DataStore) CopyStore() (sdk.DataStore, error) {
 	return &DataStore{bucketName: ds.bucketName, client: ds.client}, nil
 }

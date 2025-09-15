@@ -1,115 +1,113 @@
 package statestore
 
 import (
-	"errors"
+	"reflect"
 	"testing"
 )
 
-// --- Mock backend for abstraction test ---
 type mockBackend struct {
-	setCalled, getCalled, incrCalled, updateCalled, cleanupCalled bool
+	configured bool
+	inited     bool
+	setKey     string
+	setValue   string
+	getKey     string
+	getValue   string
+	incrKey    string
+	incrValue  int64
+	updateKey  string
+	updateOld  string
+	updateNew  string
+	cleaned    bool
+	copyCalled bool
 }
 
-func (m *mockBackend) Configure(flowName, requestId string) {}
-func (m *mockBackend) Init() error                          { return nil }
-func (m *mockBackend) Set(key, value string) error          { m.setCalled = true; return nil }
-func (m *mockBackend) Get(key string) (string, error)       { m.getCalled = true; return "val", nil }
+func (m *mockBackend) Configure(flowName, requestId string) { m.configured = true }
+func (m *mockBackend) Init() error                          { m.inited = true; return nil }
+func (m *mockBackend) Set(key, value string) error          { m.setKey = key; m.setValue = value; return nil }
+func (m *mockBackend) Get(key string) (string, error)       { m.getKey = key; return m.getValue, nil }
 func (m *mockBackend) Incr(key string, value int64) (int64, error) {
-	m.incrCalled = true
-	return 42, nil
+	m.incrKey = key
+	m.incrValue = value
+	return value + 1, nil
 }
-func (m *mockBackend) Update(key, oldValue, newValue string) error { m.updateCalled = true; return nil }
-func (m *mockBackend) Cleanup() error                              { m.cleanupCalled = true; return nil }
-func (m *mockBackend) CopyStore() (StateBackend, error)            { return &mockBackend{}, nil }
+func (m *mockBackend) Update(key, oldValue, newValue string) error {
+	m.updateKey = key
+	m.updateOld = oldValue
+	m.updateNew = newValue
+	return nil
+}
+func (m *mockBackend) Cleanup() error                   { m.cleaned = true; return nil }
+func (m *mockBackend) CopyStore() (StateBackend, error) { m.copyCalled = true; return m, nil }
 
-func TestStateStore_DelegatesToBackend(t *testing.T) {
+func TestStateStore_Configure(t *testing.T) {
 	mb := &mockBackend{}
 	s := &StateStore{backend: mb}
-	s.Configure("f", "r")
-	s.Init()
-	s.Set("k", "v")
-	s.Get("k")
-	s.Incr("k", 1)
-	s.Update("k", "old", "new")
-	s.Cleanup()
-	s.CopyStore()
-	if !mb.setCalled || !mb.getCalled || !mb.incrCalled || !mb.updateCalled || !mb.cleanupCalled {
-		t.Error("Not all backend methods were called")
+	s.Configure("flow", "req")
+	if !mb.configured {
+		t.Error("Configure did not call backend")
 	}
 }
 
-// --- RedisBackend unit test (mock redis client) ---
-type fakeRedisClient struct {
-	setErr, getErr, incrErr, delErr error
-	store                           map[string]string
-}
-
-func (f *fakeRedisClient) Set(key string, value interface{}, expiration interface{}) *fakeStatusCmd {
-	if f.setErr != nil {
-		return &fakeStatusCmd{err: f.setErr}
+func TestStateStore_Init(t *testing.T) {
+	mb := &mockBackend{}
+	s := &StateStore{backend: mb}
+	err := s.Init()
+	if err != nil || !mb.inited {
+		t.Error("Init did not call backend or returned error")
 	}
-	f.store[key] = value.(string)
-	return &fakeStatusCmd{}
 }
-func (f *fakeRedisClient) Get(key string) *fakeStringCmd {
-	if f.getErr != nil {
-		return &fakeStringCmd{err: f.getErr}
+
+func TestStateStore_SetGet(t *testing.T) {
+	mb := &mockBackend{getValue: "val"}
+	s := &StateStore{backend: mb}
+	err := s.Set("k", "val")
+	if err != nil || mb.setKey != "k" || mb.setValue != "val" {
+		t.Error("Set did not call backend or returned error")
 	}
-	v, ok := f.store[key]
-	if !ok {
-		return &fakeStringCmd{err: errors.New("not found")}
+	v, err := s.Get("k")
+	if err != nil || v != "val" || mb.getKey != "k" {
+		t.Error("Get did not call backend or returned error")
 	}
-	return &fakeStringCmd{val: v}
 }
-func (f *fakeRedisClient) IncrBy(key string, value int64) *fakeIntCmd {
-	if f.incrErr != nil {
-		return &fakeIntCmd{err: f.incrErr}
+
+func TestStateStore_Incr(t *testing.T) {
+	mb := &mockBackend{}
+	s := &StateStore{backend: mb}
+	v, err := s.Incr("k", 1)
+	if err != nil || v != 2 || mb.incrKey != "k" || mb.incrValue != 1 {
+		t.Error("Incr did not call backend or returned error")
 	}
-	return &fakeIntCmd{val: 42}
 }
-func (f *fakeRedisClient) Del(keys ...string) *fakeIntCmd {
-	if f.delErr != nil {
-		return &fakeIntCmd{err: f.delErr}
+
+func TestStateStore_Update(t *testing.T) {
+	mb := &mockBackend{}
+	s := &StateStore{backend: mb}
+	err := s.Update("k", "old", "new")
+	if err != nil || mb.updateKey != "k" || mb.updateOld != "old" || mb.updateNew != "new" {
+		t.Error("Update did not call backend or returned error")
 	}
-	for _, k := range keys {
-		delete(f.store, k)
+}
+
+func TestStateStore_Cleanup(t *testing.T) {
+	mb := &mockBackend{}
+	s := &StateStore{backend: mb}
+	err := s.Cleanup()
+	if err != nil || !mb.cleaned {
+		t.Error("Cleanup did not call backend or returned error")
 	}
-	return &fakeIntCmd{}
-}
-func (f *fakeRedisClient) Scan(cursor uint64, match string, count int64) *fakeScanCmd {
-	return &fakeScanCmd{}
-}
-func (f *fakeRedisClient) Ping() *fakeStatusCmd { return &fakeStatusCmd{} }
-
-// --- Fake redis command types ---
-type fakeStatusCmd struct{ err error }
-
-func (c *fakeStatusCmd) Err() error { return c.err }
-
-type fakeStringCmd struct {
-	val string
-	err error
 }
 
-func (c *fakeStringCmd) Result() (string, error) { return c.val, c.err }
-
-type fakeIntCmd struct {
-	val int64
-	err error
+func TestStateStore_CopyStore(t *testing.T) {
+	mb := &mockBackend{}
+	s := &StateStore{backend: mb}
+	copy, err := s.CopyStore()
+	if err != nil {
+		t.Error("CopyStore returned error")
+	}
+	if reflect.TypeOf(copy) != reflect.TypeOf(s) {
+		t.Error("CopyStore did not return StateStore type")
+	}
+	if !mb.copyCalled {
+		t.Error("CopyStore did not call backend")
+	}
 }
-
-func (c *fakeIntCmd) Result() (int64, error) { return c.val, c.err }
-func (c *fakeIntCmd) Err() error             { return c.err }
-
-type fakeScanCmd struct{}
-
-func (c *fakeScanCmd) Iterator() *fakeScanIterator { return &fakeScanIterator{} }
-
-type fakeScanIterator struct{}
-
-func (it *fakeScanIterator) Next() bool  { return false }
-func (it *fakeScanIterator) Val() string { return "" }
-func (it *fakeScanIterator) Err() error  { return nil }
-
-// TODO: Add RedisBackend unit tests using fakeRedisClient
-// TODO: Add FoundationDBBackend unit tests (when implemented)
