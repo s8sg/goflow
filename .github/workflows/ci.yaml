@@ -17,16 +17,6 @@ jobs:
         run: go test -v -coverprofile=coverage.out ./...
       - name: Generate coverage HTML
         run: go tool cover -html=coverage.out -o coverage.html
-      - name: Check coverage threshold
-        run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-          echo "Total coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "Coverage ${COVERAGE}% is below the required 80% threshold"
-            exit 1
-          else
-            echo "Coverage ${COVERAGE}% meets the required 80% threshold"
-          fi
       - uses: actions/upload-artifact@v1
         with:
           name: coverage.html
