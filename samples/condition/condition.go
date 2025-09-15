@@ -2,8 +2,9 @@ package condition
 
 import (
 	"fmt"
-	flow "github.com/s8sg/goflow/flow/v1"
 	"math/rand"
+
+	flow "github.com/s8sg/goflow/flow/v1"
 )
 
 const (
@@ -54,8 +55,8 @@ func result(data []byte, option map[string][]string) ([]byte, error) {
 // here conditionAggregator aggregates the result from different condition branches before forwarding
 // it to the next node in the dag
 func conditionAggregator(data map[string][]byte) ([]byte, error) {
-	case1Data, _ := data["case1"]
-	case2Data, _ := data["case2"]
+	case1Data := data["case1"]
+	case2Data := data["case2"]
 	aggregatedResult := fmt.Sprintf("(case1: %s, case2: %s)", case1Data, case2Data)
 	return []byte(aggregatedResult), nil
 }

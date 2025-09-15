@@ -63,7 +63,7 @@ func (ds *DataStore) Configure(flowName string, requestId string) {
 
 func (ds *DataStore) Init() error {
 	if ds.client == nil {
-		return fmt.Errorf("Storage Client not initialized, use GetDatastore()")
+		return fmt.Errorf("storage client not initialized, use GetDatastore()")
 	}
 	return nil
 }

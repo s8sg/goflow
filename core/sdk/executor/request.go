@@ -66,7 +66,3 @@ func (req *Request) getExecutionState() string {
 func (req *Request) getContextStore() map[string][]byte {
 	return req.ContextStore
 }
-
-func (req *Request) getQuery() string {
-	return req.Query
-}

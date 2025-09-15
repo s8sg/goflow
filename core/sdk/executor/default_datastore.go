@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+
 	"github.com/s8sg/goflow/core/sdk"
 )
 
@@ -51,9 +52,7 @@ func (rstore *requestEmbedDataStore) Get(key string) ([]byte, error) {
 
 // Del delets a value (implement DataStore)
 func (rstore *requestEmbedDataStore) Del(key string) error {
-	if _, ok := rstore.store[key]; ok {
-		delete(rstore.store, key)
-	}
+	delete(rstore.store, key)
 	return nil
 }
 

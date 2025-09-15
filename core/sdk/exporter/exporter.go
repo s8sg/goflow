@@ -41,7 +41,7 @@ func (fexp *FlowExporter) Export() ([]byte, error) {
 	// Get definition: Get Pipeline definition from user implemented Define()
 	err := fexp.exporter.GetFlowDefinition(fexp.flow, context)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to define flow, %v", err)
+		return nil, fmt.Errorf("failed to define flow, %v", err)
 	}
 
 	// Get DAG json definition

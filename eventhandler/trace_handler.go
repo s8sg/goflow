@@ -174,5 +174,5 @@ func (tracerObj *TraceHandler) StopOperationSpan(node string, operationID string
 
 // FlushTracer flush all pending traces
 func (tracerObj *TraceHandler) FlushTracer() {
-	tracerObj.closer.Close()
+	_ = tracerObj.closer.Close()
 }

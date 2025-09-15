@@ -631,10 +631,6 @@ func (fRuntime *FlowRuntime) internalRequestQueueId(flowName string) string {
 	return fmt.Sprintf("%s:%s", InternalRequestQueueInitial, flowName)
 }
 
-func (fRuntime *FlowRuntime) requestQueueId(flowName string) string {
-	return flowName
-}
-
 func (fRuntime *FlowRuntime) saveWorkerDetails(worker *Worker) error {
 	rdb := fRuntime.rdb
 	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
