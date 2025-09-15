@@ -5,10 +5,10 @@ jobs:
     name: Unit test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: actions/setup-go@v1
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.20'
       - name: Build
@@ -17,6 +17,17 @@ jobs:
         run: go test -v -coverprofile=coverage.out ./...
       - name: Generate coverage HTML
         run: go tool cover -html=coverage.out -o coverage.html
-      - uses: actions/upload-artifact@v1
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below the required 80% threshold"
+            exit 1
+          else
+            echo "Coverage ${COVERAGE}% meets the required 80% threshold"
+          fi
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage.html
+          path: coverage.html
