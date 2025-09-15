@@ -13,6 +13,7 @@ type FlowService struct {
 	Port                    int
 	RedisURL                string
 	RedisPassword           string
+	RedisDB                 int
 	RequestAuthSharedSecret string
 	RequestAuthEnabled      bool
 	WorkerConcurrency       int
@@ -54,6 +55,7 @@ func (fs *FlowService) Execute(flowName string, req *Request) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -86,6 +88,7 @@ func (fs *FlowService) Pause(flowName string, requestId string) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -115,6 +118,7 @@ func (fs *FlowService) Resume(flowName string, requestId string) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -144,6 +148,7 @@ func (fs *FlowService) Stop(flowName string, requestId string) error {
 	fs.runtime = &runtime.FlowRuntime{
 		RedisURL:                fs.RedisURL,
 		RedisPassword:           fs.RedisPassword,
+		RedisDB:                 fs.RedisDB,
 		RequestAuthEnabled:      fs.RequestAuthEnabled,
 		RequestAuthSharedSecret: fs.RequestAuthSharedSecret,
 	}
@@ -198,7 +203,6 @@ func (fs *FlowService) Register(flowName string, handler runtime.FlowDefinitionH
 
 func (fs *FlowService) Start() error {
 	fs.ConfigureDefault()
-
 	errorChan := make(chan error)
 	defer close(errorChan)
 
@@ -216,7 +220,6 @@ func (fs *FlowService) Start() error {
 
 func (fs *FlowService) StartServer() error {
 	fs.ConfigureDefault()
-
 	errorChan := make(chan error)
 	defer close(errorChan)
 	if err := fs.initRuntime(errorChan); err != nil {
@@ -234,7 +237,6 @@ func (fs *FlowService) StartServer() error {
 
 func (fs *FlowService) StartWorker() error {
 	fs.ConfigureDefault()
-
 	errorChan := make(chan error)
 	defer close(errorChan)
 

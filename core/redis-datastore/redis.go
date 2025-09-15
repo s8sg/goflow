@@ -13,11 +13,12 @@ type RedisDataStore struct {
 	redisClient redis.UniversalClient
 }
 
-func GetRedisDataStore(redisUri string, password string) (sdk.DataStore, error) {
+func GetRedisDataStore(redisUri string, password string, db int) (sdk.DataStore, error) {
 	ds := &RedisDataStore{}
 	client := redis.NewClient(&redis.Options{
 		Addr:     redisUri,
 		Password: password,
+		DB:       db,
 	})
 	err := client.Ping().Err()
 	if err != nil {

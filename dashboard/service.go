@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/rs/xid"
 	"log"
+	"os"
+	"strconv"
+	"strings"
 
+	"github.com/rs/xid"
 	lib2 "github.com/s8sg/goflow/dashboard/lib"
 	goflow3 "github.com/s8sg/goflow/v1"
 	redis "gopkg.in/redis.v5"
-	"os"
-	"strings"
 )
 
 var rdb *redis.Client
@@ -115,6 +116,7 @@ func executeFlow(flow string, data []byte) (string, error) {
 	fs := goflow3.FlowService{
 		RedisURL:      getRedisAddr(),
 		RedisPassword: getRedisPassword(),
+		RedisDB:       getRedisDB(),
 	}
 
 	requestId := getNewId()
@@ -136,6 +138,7 @@ func pauseRequest(flow string, requestID string) error {
 	fs := &goflow3.FlowService{
 		RedisURL:      getRedisAddr(),
 		RedisPassword: getRedisPassword(),
+		RedisDB:       getRedisDB(),
 	}
 
 	err := fs.Pause(flow, requestID)
@@ -151,6 +154,7 @@ func resumeRequest(flow string, requestID string) error {
 	fs := &goflow3.FlowService{
 		RedisURL:      getRedisAddr(),
 		RedisPassword: getRedisPassword(),
+		RedisDB:       getRedisDB(),
 	}
 
 	err := fs.Resume(flow, requestID)
@@ -166,6 +170,7 @@ func stopRequest(flow string, requestID string) error {
 	fs := &goflow3.FlowService{
 		RedisURL:      getRedisAddr(),
 		RedisPassword: getRedisPassword(),
+		RedisDB:       getRedisDB(),
 	}
 
 	err := fs.Stop(flow, requestID)
@@ -179,11 +184,12 @@ func stopRequest(flow string, requestID string) error {
 func getRDB() *redis.Client {
 	addr := getRedisAddr()
 	password := getRedisPassword()
+	db := getRedisDB()
 	if rdb == nil {
 		rdb = redis.NewClient(&redis.Options{
 			Addr:     addr,
 			Password: password,
-			DB:       0,
+			DB:       db,
 		})
 	}
 	return rdb
@@ -200,6 +206,19 @@ func getRedisAddr() string {
 func getRedisPassword() string {
 	addr := os.Getenv("REDIS_PASSWORD")
 	return addr
+}
+
+func getRedisDB() int {
+	dbStr := os.Getenv("REDIS_DB")
+	if dbStr == "" {
+		return 0
+	}
+	db, err := strconv.Atoi(dbStr)
+	if err != nil {
+		log.Printf("Failed get redisDB, %v", err)
+		return 0
+	}
+	return db
 }
 
 func getNewId() string {
