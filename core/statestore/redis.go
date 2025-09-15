@@ -1,4 +1,3 @@
-
 package statestore
 
 import (
@@ -6,7 +5,6 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/s8sg/goflow/core/sdk"
 )
-
 
 // StateBackend abstracts the backend logic for statestore
 type StateBackend interface {
@@ -134,12 +132,11 @@ func (r *RedisBackend) CopyStore() (StateBackend, error) {
 	return &RedisBackend{KeyPath: r.KeyPath, rds: r.rds}, nil
 }
 
-
 // GetStateStore returns a StateStore using RedisBackend
 func GetStateStore(redisUri, password string) (*StateStore, error) {
 	backend, err := NewRedisBackend(redisUri, password)
 	if err != nil {
-		 return nil, err
+		return nil, err
 	}
 	return &StateStore{backend: backend}, nil
 }
