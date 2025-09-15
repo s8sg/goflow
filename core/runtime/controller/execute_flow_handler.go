@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/s8sg/goflow/core/runtime"
 	"log"
-
 	"github.com/s8sg/goflow/core/sdk/executor"
 )
 
