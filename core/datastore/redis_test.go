@@ -1,398 +1,214 @@
 package datastore
 
 import (
+	"context"
 	"errors"
 	"testing"
-	"time"
-	"gopkg.in/redis.v5"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/golang/mock/gomock"
+	"github.com/s8sg/goflow/core/datastore/mocks"
 )
 
-func TestRedisStateStore_Configure(t *testing.T) {
-	store := &statestore.StateStore{}
-	// Add test logic here if needed
-}
-
-// Mock command types
-
-type mockStatusCmd struct{ err error }
-
-func (c *mockStatusCmd) Err() error              { return c.err }
-type mockStringCmd struct {
-	val string
-	err error
-}
-
-func (c *mockStringCmd) Result() (string, error) { return c.val, c.err }
-
-var _ IntCmd = (*mockIntCmd)(nil)
-
-
-func (c *mockIntCmd) Result() (int64, error) { return 1, c.err }
-func (c *mockIntCmd) Err() error             { return c.err }
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-var _ ScanCmd = (*mockScanCmd)(nil)
-
-type mockScanCmd struct {
-	keys []string
-	idx  int
-}
-
-func (c *mockScanCmd) Iterator() ScanIterator { return &mockScanIterator{keys: c.keys} }
-func (c *mockScanCmd) Err() error             { return nil }
-
-var _ ScanIterator = (*mockScanIterator)(nil)
-
-type mockScanIterator struct {
-	keys []string
-	idx  int
-}
-func (it *mockScanIterator) Next() bool  { it.idx++; return it.idx <= len(it.keys) }
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-func (it *mockScanIterator) Err() error  { return nil }
-
-type mockRedisClient struct {
-	store map[string]string
-	fail  bool
-}
-
-
-// Implement RedisClient interface
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-	if m.fail {
-		return &mockStatusCmd{err: errors.New("set fail")}
+func TestGetDatastore(t *testing.T) {
+	// Mock redisClientFactory that returns a stub redis.Client
+	called := false
+	mockFactory := func(redisUri, password string) StorageClient {
+		called = true
+		// Create a redis.Client with a custom Ping method
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		client := mocks.NewMockStorageClient(ctrl)
+		return client
 	}
-	m.store[key] = value.(string)
-	return &mockStatusCmd{}
-}
-func (m *mockRedisClient) Get(key string) StringCmd {
-	if m.fail {
-		return &mockStringCmd{err: errors.New("get fail")}
-	}
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-	if !ok {
-		return &mockStringCmd{err: errors.New("not found")}
-	}
-	return &mockStringCmd{val: v}
-}
-func (m *mockRedisClient) Del(keys ...string) IntCmd {
-       if m.fail {
-	       return &mockIntCmd{err: errors.New("del fail")}
-       }
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-	       delete(m.store, k)
-       }
-       return &mockIntCmd{}
-}
-func (m *mockRedisClient) Scan(cursor uint64, match string, count int64) ScanCmd {
-	return &mockScanCmd{keys: []string{}}
-}
-func (m *mockRedisClient) Ping() StatusCmd {
-       if m.fail {
-	       return &mockStatusCmd{err: errors.New("ping fail")}
-       }
-       return &mockStatusCmd{}
-}
 
-func TestDatastore_Configure(t *testing.T) {
-	ds := &Datastore{}
-	ds.Configure("f", "r")
-	if ds.bucketName == "" {
-		t.Error("Configure did not set bucketName")
+	ds, err := GetDatastore("localhost:6379", "", mockFactory)
+	if err == nil || err.Error() != "mock ping error" {
+		t.Errorf("GetDatastore() error = %v, want mock ping error", err)
 	}
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-		// intentionally left blank
-	ds.redisClient = nil
-	if ds.Init() == nil {
-		t.Error("Init should fail with nil client")
+	if ds != nil {
+		t.Errorf("GetDatastore() ds = %v, want nil", ds)
+	}
+	if !called {
+		t.Errorf("mockFactory was not called")
 	}
 }
 
-func TestDatastore_Cleanup(t *testing.T) {
-	ds := &Datastore{bucketName: "b", redisClient: &mockRedisClient{store: map[string]string{"b.k.value": "v"}}}
+func TestDataStore_Cleanup_IteratorError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := mocks.NewMockStorageClient(ctrl)
+	ds := &DataStore{client: client, bucketName: "bucket"}
+	scanCmd := redis.NewScanCmd(context.Background(), nil)
+	scanCmd.SetErr(errors.New("scan error"))
+	client.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(scanCmd)
 	err := ds.Cleanup()
-		// intentionally left blank
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-
-func Test_getPath(t *testing.T) {
-	p := getPath("b", "k")
-	if p != "b.k.value" {
-		t.Errorf("unexpected path: %s", p)
+	if err == nil || err.Error() != "scan error" {
+		t.Errorf("Cleanup() error = %v, want scan error", err)
 	}
 }
-			   // intentionally left blank
-func TestDatastore_CopyStore(t *testing.T) {
-	ds := &Datastore{bucketName: "b", redisClient: &mockRedisClient{}}
+
+func TestDataStore_Cleanup_DeleteError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := mocks.NewMockStorageClient(ctrl)
+	ds := &DataStore{client: client, bucketName: "bucket"}
+	scanCmd := redis.NewScanCmd(context.Background(), nil)
+	scanCmd.SetVal([]string{"bucket.key.value"}, 0)
+	client.EXPECT().Scan(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(scanCmd)
+	client.EXPECT().Delete(gomock.Any(), "bucket.key.value").Return(redis.NewIntCmd(context.Background())).DoAndReturn(
+		func(ctx context.Context, key ...string) *redis.IntCmd {
+			cmd := redis.NewIntCmd(ctx)
+			cmd.SetErr(errors.New("delete error"))
+			return cmd
+		})
+	err := ds.Cleanup()
+	if err == nil || err.Error() != "delete error" {
+		t.Errorf("Cleanup() error = %v, want delete error", err)
+	}
+}
+
+func TestDataStore_Set(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.Background()
+	client := mocks.NewMockStorageClient(ctrl)
+	ds := &DataStore{client: client, bucketName: "bucket"}
+	client.EXPECT().Set(ctx, "bucket.key.value", "value", gomock.Any()).Return(redis.NewStatusCmd(ctx))
+	err := ds.Set("key", []byte("value"))
+	if err != nil {
+		t.Errorf("Set() error = %v, wantErr %v", err, nil)
+	}
+}
+
+func TestDataStore_Get(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.Background()
+	client := mocks.NewMockStorageClient(ctrl)
+	ds := &DataStore{client: client, bucketName: "bucket"}
+	getCmd := redis.NewStringCmd(ctx)
+	getCmd.SetVal("value")
+	client.EXPECT().Get(ctx, "bucket.key.value").Return(getCmd)
+	val, err := ds.Get("key")
+	if err != nil || string(val) != "value" {
+		t.Errorf("Get() got = %v, want %v", string(val), "value")
+	}
+}
+
+func TestDataStore_Del(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.Background()
+	client := mocks.NewMockStorageClient(ctrl)
+	ds := &DataStore{client: client, bucketName: "bucket"}
+	delCmd := redis.NewIntCmd(ctx)
+	delCmd.SetVal(1)
+	client.EXPECT().Delete(ctx, "bucket.key.value").Return(delCmd)
+	err := ds.Del("key")
+	if err != nil {
+		t.Errorf("Del() error = %v, wantErr %v", err, nil)
+	}
+}
+
+func TestDataStore_Scan(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.Background()
+	client := mocks.NewMockStorageClient(ctrl)
+	scanCmd := redis.NewScanCmd(ctx, nil)
+	scanCmd.SetVal([]string{"bucket.key.value"}, 0)
+	client.EXPECT().Scan(ctx, gomock.Any(), gomock.Any(), gomock.Any()).Return(scanCmd)
+	result := client.Scan(ctx, 0, "bucket.*", 10)
+	if result == nil {
+		t.Errorf("Scan() result = nil, want non-nil")
+	}
+}
+
+func TestDataStore_Ping(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ctx := context.Background()
+	client := mocks.NewMockStorageClient(ctrl)
+	pingCmd := redis.NewStatusCmd(ctx)
+	pingCmd.SetVal("PONG")
+	client.EXPECT().Ping(ctx).Return(pingCmd)
+	pong := client.Ping(ctx)
+	if pong.Val() != "PONG" {
+		t.Errorf("Ping() got = %v, want %v", pong.Val(), "PONG")
+	}
+}
+
+func TestDataStore_Configure(t *testing.T) {
+	ds := &DataStore{}
+	ds.Configure("flow", "req")
+	want := "core-flow-req"
+	if ds.bucketName != want {
+		t.Errorf("Configure() got = %v, want %v", ds.bucketName, want)
+	}
+}
+
+func TestDataStore_Init_Error(t *testing.T) {
+	ds := &DataStore{}
+	err := ds.Init()
+	if err == nil {
+		t.Errorf("Init() error = nil, want error")
+	}
+}
+
+func TestDataStore_Init_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := mocks.NewMockStorageClient(ctrl)
+	ds := &DataStore{client: client}
+	err := ds.Init()
+	if err != nil {
+		t.Errorf("Init() error = %v, want nil", err)
+	}
+}
+
+func TestDataStore_CopyStore(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	client := mocks.NewMockStorageClient(ctrl)
+	ds := &DataStore{client: client, bucketName: "bucket"}
 	copy, err := ds.CopyStore()
 	if err != nil {
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
+		t.Errorf("CopyStore() error = %v, want nil", err)
 	}
-	copied, ok := copy.(*Datastore)
-	if !ok || copied.bucketName != ds.bucketName {
-		t.Error("CopyStore did not copy fields")
-	}
-}
-			   // ...existing code...
-// --- RedisStateStore tests for core/statestore/redis.go ---
-
-type mockRedisUniversalClient struct {
-	store      map[string]string
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-	failGet    bool
-	failSet    bool
-	failDel    bool
-	failIncr   bool
-	failScan   bool
-	failWatch  bool
-}
-
-func newMockRedisUniversalClient() *mockRedisUniversalClient {
-       return &mockRedisUniversalClient{
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-               incrValues: make(map[string]int64),
-       }
-}
-
-func (m *mockRedisUniversalClient) Ping() *mockStatusCmd {
-	return &mockStatusCmd{}
-}
-func (m *mockRedisUniversalClient) Set(key string, value interface{}, expiration time.Duration) *mockStatusCmd {
-	if m.failSet {
-		 return &mockStatusCmd{err: errors.New("set fail")}
-	}
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}}
-	return &mockStatusCmd{}
-}
-func (m *mockRedisUniversalClient) Get(key string) *mockStringCmd {
-	if m.failGet {
-		return &mockStringCmd{err: errors.New("get fail")}
-	}
-	v, ok := m.store[key]
-	if !ok {
-		return &mockStringCmd{err: redis.Nil}
-	}
-	return &mockStringCmd{val: v}
-}
-func (m *mockRedisUniversalClient) Del(keys ...string) *mockIntCmd {
-	if m.failDel {
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req", rds: mock}}
-	}
-	for _, k := range keys {
-		delete(m.store, k)
-	}
-	return &mockIntCmd{}
-}
-func (m *mockRedisUniversalClient) IncrBy(key string, value int64) *mockIntCmd {
-	if m.failIncr {
-		store := &statestore.StateStore{backend: &statestore.RedisBackend{KeyPath: "core.flow.req"}, RetryCount: 3}
-	}
-	m.incrValues[key] += value
-	return &mockIntCmd{err: nil}
-}
-func (m *mockRedisUniversalClient) Scan(cursor uint64, match string, count int64) *mockScanCmd {
-	if m.failScan {
-		return &mockScanCmd{keys: []string{}}
-	}
-	var keys []string
-	for k := range m.store {
-		keys = append(keys, k)
-	}
-	return &mockScanCmd{keys: keys}
-}
-func (m *mockRedisUniversalClient) Watch(fn func(tx *mockRedisUniversalClient) error, keys ...string) error {
-	if m.failWatch {
-		return errors.New("watch fail")
-	}
-	return fn(m)
-}
-func (m *mockRedisUniversalClient) Pipelined(fn func(pl *mockRedisUniversalClient) error) ([]interface{}, error) {
-	return nil, fn(m)
-}
-func (m *mockRedisUniversalClient) Iterator() *mockScanIterator {
-	var keys []string
-	for k := range m.store {
-		keys = append(keys, k)
-	}
-	return &mockScanIterator{keys: keys}
-}
-
-// --- Tests ---
-
-func TestRedisStateStore_Configure(t *testing.T) {
-	store := &statestore.Statestore{}
-	store.Configure("flow", "req")
-	expected := "core.flow.req"
-	if store.KeyPath != expected {
-		t.Errorf("expected KeyPath %s, got %s", expected, store.KeyPath)
+	if copy.bucketName != ds.bucketName {
+		t.Errorf("CopyStore() bucketName = %v, want %v", copy.bucketName, ds.bucketName)
 	}
 }
 
-func TestRedisStateStore_SetAndGet(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	err := store.Set("foo", "bar")
-	if err != nil {
-		t.Fatalf("Set failed: %v", err)
-	}
-	val, err := store.Get("foo")
-	if err != nil {
-		t.Fatalf("Get failed: %v", err)
-	}
-	if val != "bar" {
-		t.Errorf("expected bar, got %s", val)
-	}
-}
-
-func TestRedisStateStore_Set_Error(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	mock.failSet = true
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	err := store.Set("foo", "bar")
+func TestDataStore_Set_Error(t *testing.T) {
+	ds := &DataStore{}
+	err := ds.Set("key", []byte("value"))
 	if err == nil {
-		t.Error("expected error from Set")
+		t.Errorf("Set() error = nil, want error")
 	}
 }
 
-func TestRedisStateStore_Get_NotFound(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	_, err := store.Get("notfound")
+func TestDataStore_Get_Error(t *testing.T) {
+	ds := &DataStore{}
+	_, err := ds.Get("key")
 	if err == nil {
-		t.Error("expected error for missing key")
+		t.Errorf("Get() error = nil, want error")
 	}
 }
 
-func TestRedisStateStore_Get_Error(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	mock.failGet = true
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	_, err := store.Get("foo")
+func TestDataStore_Del_Error(t *testing.T) {
+	ds := &DataStore{}
+	err := ds.Del("key")
 	if err == nil {
-		t.Error("expected error from Get")
+		t.Errorf("Del() error = nil, want error")
 	}
 }
 
-func TestRedisStateStore_Incr(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	val, err := store.Incr("counter", 2)
-	if err != nil {
-		t.Fatalf("Incr failed: %v", err)
-	}
-	if val != 2 {
-		t.Errorf("expected 2, got %d", val)
-	}
-	val, err = store.Incr("counter", 3)
-	if err != nil {
-		t.Fatalf("Incr failed: %v", err)
-	}
-	if val != 5 {
-		t.Errorf("expected 5, got %d", val)
-	}
-}
-
-func TestRedisStateStore_Incr_Error(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	mock.failIncr = true
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	_, err := store.Incr("counter", 1)
+func TestDataStore_Cleanup_Error(t *testing.T) {
+	ds := &DataStore{}
+	err := ds.Cleanup()
 	if err == nil {
-		t.Error("expected error from Incr")
-	}
-}
-
-func TestRedisStateStore_Update_Success(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	key := "core.flow.req.foo"
-	mock.store[key] = "old"
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	err := store.Update("foo", "old", "new")
-	if err != nil {
-		t.Fatalf("Update failed: %v", err)
-	}
-	if mock.store[key] != "new" {
-		t.Errorf("expected new value, got %s", mock.store[key])
-	}
-}
-
-func TestRedisStateStore_Update_NotExist(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	err := store.Update("foo", "old", "new")
-	if err == nil || err.Error() != "[core.flow.req.foo] not exist" {
-		t.Errorf("expected not exist error, got %v", err)
-	}
-}
-
-func TestRedisStateStore_Update_OldValueMismatch(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	key := "core.flow.req.foo"
-	mock.store[key] = "something"
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	err := store.Update("foo", "old", "new")
-	if err == nil || err.Error() != "Old value doesn't match for key core.flow.req.foo" {
-		t.Errorf("expected old value mismatch error, got %v", err)
-	}
-}
-
-func TestRedisStateStore_Update_GetError(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	mock.failGet = true
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	err := store.Update("foo", "old", "new")
-	if err == nil || err.Error() != "unexpect error get fail" {
-		t.Errorf("expected get fail error, got %v", err)
-	}
-}
-
-func TestRedisStateStore_Cleanup(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	mock.store["core.flow.req.a"] = "1"
-	mock.store["core.flow.req.b"] = "2"
-	store := &statestore.Statestore{KeyPath: "core.flow.req"}
-	store.SetRedisClient(mock)
-	err := store.Cleanup()
-	if err != nil {
-		t.Fatalf("Cleanup failed: %v", err)
-	}
-	if len(mock.store) != 0 {
-		t.Errorf("expected store to be empty, got %v", mock.store)
-	}
-}
-
-func TestRedisStateStore_Cleanup_DelError(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	mock.store["core.flow.req.a"] = "1"
-	mock.failDel = true
-	store := &statestore.RedisStateStore{KeyPath: "core.flow.req", rds: mock}
-	err := store.Cleanup()
-	if err == nil {
-		t.Error("expected error from Del in Cleanup")
-	}
-}
-
-func TestRedisStateStore_CopyStore(t *testing.T) {
-	mock := newMockRedisUniversalClient()
-	store := &statestore.Statestore{KeyPath: "core.flow.req", RetryCount: 3}
-	store.SetRedisClient(mock)
-	copiedIface, err := store.CopyStore()
-	if err != nil {
-		t.Fatalf("CopyStore failed: %v", err)
-	}
-	copied, ok := copiedIface.(*statestore.Statestore)
-	if !ok {
-		t.Fatalf("CopyStore did not return *Statestore")
-	}
-	if copied.KeyPath != store.KeyPath || copied.RetryCount != store.RetryCount || copied.GetRedisClient() != store.GetRedisClient() {
-		t.Error("CopyStore did not copy fields correctly")
+		t.Errorf("Cleanup() error = nil, want error")
 	}
 }

@@ -1,160 +1,124 @@
 package datastore
 
 import (
-	"errors"
+	"context"
 	"fmt"
-	"time"
 
-	"github.com/go-redis/redis"
-	"github.com/s8sg/goflow/core/sdk"
+	"github.com/go-redis/redis/v8"
 )
 
-type Datastore struct {
-	bucketName  string
-	redisClient RedisClient
+type ClientFactory func(redisUri, password string) StorageClient
+
+type redisStorageClient struct {
+	client *redis.Client
 }
 
-// RedisClient interface for testability
-type RedisClient interface {
-	Set(key string, value interface{}, expiration time.Duration) StatusCmd
-	Get(key string) StringCmd
-	Del(keys ...string) IntCmd
-	Scan(cursor uint64, match string, count int64) ScanCmd
-	Ping() StatusCmd
+func (ds *redisStorageClient) Ping(ctx context.Context) *redis.StatusCmd {
+	return ds.client.Ping(ctx)
+}
+func (ds *redisStorageClient) Scan(ctx context.Context, cursor uint64, match string, count int64) *redis.ScanCmd {
+	return ds.client.Scan(ctx, cursor, match, count)
+}
+func (ds *redisStorageClient) Set(ctx context.Context, key string, value interface{}, expirationSeconds int) *redis.StatusCmd {
+	return ds.client.Set(ctx, key, value, 0)
+}
+func (ds *redisStorageClient) Get(ctx context.Context, key string) *redis.StringCmd {
+	return ds.client.Get(ctx, key)
+}
+func (ds *redisStorageClient) Delete(ctx context.Context, keys ...string) *redis.IntCmd {
+	return ds.client.Del(ctx, keys...)
 }
 
-// Wrappers for redis command types
-type StatusCmd interface {
-	Err() error
-	Result() (string, error)
-}
-type StringCmd interface {
-	Result() (string, error)
-}
-type IntCmd interface {
-	Result() (int64, error)
-	Err() error
-}
-type ScanCmd interface {
-	Iterator() ScanIterator
-	Err() error
-}
-type ScanIterator interface {
-	Next() bool
-	Val() string
-	Err() error
-}
-
-// realRedisClient wraps *redis.Client to implement RedisClient
-type realRedisClient struct{ *redis.Client }
-
-func (c *realRedisClient) Set(key string, value interface{}, expiration time.Duration) StatusCmd {
-	return c.Client.Set(key, value, expiration)
-}
-func (c *realRedisClient) Get(key string) StringCmd {
-	return c.Client.Get(key)
-}
-func (c *realRedisClient) Del(keys ...string) IntCmd {
-	return c.Client.Del(keys...)
-}
-func (c *realRedisClient) Scan(cursor uint64, match string, count int64) ScanCmd {
-	return &realScanCmd{c.Client.Scan(cursor, match, count)}
-}
-func (c *realRedisClient) Ping() StatusCmd {
-	return c.Client.Ping()
-}
-
-type realScanCmd struct{ cmd *redis.ScanCmd }
-
-func (c *realScanCmd) Iterator() ScanIterator { return &realScanIterator{c.cmd.Iterator()} }
-func (c *realScanCmd) Err() error             { return c.cmd.Err() }
-
-type realScanIterator struct{ it *redis.ScanIterator }
-
-func (it *realScanIterator) Next() bool  { return it.it.Next() }
-func (it *realScanIterator) Val() string { return it.it.Val() }
-func (it *realScanIterator) Err() error  { return it.it.Err() }
-
-func GetDatastore(redisUri string, password string) (sdk.DataStore, error) {
-	ds := &Datastore{}
-	client := redis.NewClient(&redis.Options{
+var defaultStorageClientFactory ClientFactory = func(redisUri, password string) StorageClient {
+	return &redisStorageClient{client: redis.NewClient(&redis.Options{
 		Addr:     redisUri,
 		Password: password,
-	})
-	err := client.Ping().Err()
+	})}
+}
+
+func GetDatastore(redisUri string, password string, storageFactory ...ClientFactory) (*DataStore, error) {
+	ds := &DataStore{}
+	var clientStorageFactory ClientFactory
+
+	if len(storageFactory) > 0 && storageFactory[0] != nil {
+		clientStorageFactory = storageFactory[0]
+	} else {
+		clientStorageFactory = defaultStorageClientFactory
+	}
+	client := clientStorageFactory(redisUri, password)
+	ctx := context.Background()
+	err := client.Ping(ctx).Err()
 	if err != nil {
 		return nil, err
 	}
-	ds.redisClient = &realRedisClient{client}
+	ds.client = client
 	return ds, nil
 }
 
-func (ds *Datastore) Configure(flowName string, requestId string) {
+func (ds *DataStore) Configure(flowName string, requestId string) {
 	bucketName := fmt.Sprintf("core-%s-%s", flowName, requestId)
-
 	ds.bucketName = bucketName
 }
 
-func (ds *Datastore) Init() error {
-	if ds.redisClient == nil {
-		return fmt.Errorf("redis client not initialized, use GetDatastore()")
+func (ds *DataStore) Init() error {
+	if ds.client == nil {
+		return fmt.Errorf("Storage Client not initialized, use GetDatastore()")
 	}
-
 	return nil
 }
 
-func (ds *Datastore) Set(key string, value []byte) error {
-	if ds.redisClient == nil {
-		return fmt.Errorf("redis client not initialized, use GetDatastore()")
+func (ds *DataStore) Set(key string, value []byte) error {
+	if ds.client == nil {
+		return fmt.Errorf("storage client not initialized, use GetDatastore()")
 	}
-
 	fullPath := getPath(ds.bucketName, key)
-	_, err := ds.redisClient.Set(fullPath, string(value), 0).Result()
+	ctx := context.Background()
+	_, err := ds.client.Set(ctx, fullPath, string(value), 0).Result()
 	if err != nil {
 		return fmt.Errorf("error writing: %s, error: %s", fullPath, err.Error())
 	}
-
 	return nil
 }
-
-func (ds *Datastore) Get(key string) ([]byte, error) {
-	if ds.redisClient == nil {
-		return nil, fmt.Errorf("redis client not initialized, use GetDatastore()")
+func (ds *DataStore) Get(key string) ([]byte, error) {
+	if ds.client == nil {
+		return nil, fmt.Errorf("storage client not initialized, use GetDatastore()")
 	}
 
 	fullPath := getPath(ds.bucketName, key)
-	v := ds.redisClient.Get(fullPath)
-	if v == nil {
+	ctx := context.Background()
+	value, err := ds.client.Get(ctx, fullPath).Result()
+	if err == redis.Nil {
 		return nil, fmt.Errorf("error reading: %v, data is nil", fullPath)
 	}
-	value, err := v.Result()
 	if err != nil {
 		return nil, fmt.Errorf("error reading: %s, error: %s", fullPath, err.Error())
 	}
 	return []byte(value), nil
 }
-
-func (ds *Datastore) Del(key string) error {
-	if ds.redisClient == nil {
+func (ds *DataStore) Del(key string) error {
+	if ds.client == nil {
 		return fmt.Errorf("redis client not initialized, use GetDatastore()")
 	}
 
 	fullPath := getPath(ds.bucketName, key)
-	_, err := ds.redisClient.Del(fullPath).Result()
+	ctx := context.Background()
+	_, err := ds.client.Delete(ctx, fullPath).Result()
 	if err != nil {
 		return fmt.Errorf("error removing: %s, error: %s", fullPath, err.Error())
 	}
 	return nil
 }
-
-func (ds *Datastore) Cleanup() error {
+func (ds *DataStore) Cleanup() error {
 	key := ds.bucketName + ".*"
-	client := ds.redisClient
+	if ds.client == nil {
+		return fmt.Errorf("redis client not initialized, use GetDatastore()")
+	}
 	var rerr error
+	ctx := context.Background()
 
-	iter := client.Scan(0, key, 0).Iterator()
-	for iter.Next() {
-		err := client.Del(iter.Val()).Err()
+	iter := ds.client.Scan(ctx, 0, key, 0).Iterator()
+	for iter.Next(ctx) {
+		err := ds.client.Delete(ctx, iter.Val()).Err()
 		if err != nil {
 			rerr = err
 		}
@@ -172,6 +136,6 @@ func getPath(bucket, key string) string {
 	return fmt.Sprintf("%s.%s", bucket, fileName)
 }
 
-func (ds *Datastore) CopyStore() (sdk.DataStore, error) {
-	return &Datastore{bucketName: ds.bucketName, redisClient: ds.redisClient}, nil
+func (ds *DataStore) CopyStore() (*DataStore, error) {
+	return &DataStore{bucketName: ds.bucketName, client: ds.client}, nil
 }
