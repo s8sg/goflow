@@ -147,7 +147,7 @@ const (
 // log logs using logger if logging enabled
 func (fexec *FlowExecutor) log(str string, a ...interface{}) {
 	if fexec.executor.LoggingEnabled() {
-		logStr := fmt.Sprintf(str, a...)
+		logStr := fmt.Sprintf("%s", fmt.Sprintf(str, a...))
 		fexec.logger.Log(logStr)
 	}
 }
@@ -897,8 +897,7 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 		fexec.eventHandler.Flush()
 	}
 
-	errStr := fmt.Sprintf("[request `%s`] Failed, %v\n", fexec.id, err)
-	fexec.log(errStr)
+	fexec.log("[request `%s`] Failed, %v\n", fexec.id, err)
 }
 
 // getDagIntermediateData gets the intermediate data from earlier vertex

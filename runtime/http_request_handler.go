@@ -2,12 +2,13 @@ package runtime
 
 import (
 	"fmt"
-	"github.com/rs/xid"
-	runtimeCommon "github.com/s8sg/goflow/runtime/common"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/rs/xid"
+	runtimeCommon "github.com/s8sg/goflow/runtime/common"
 
 	runtimepkg "github.com/s8sg/goflow/core/runtime"
 
@@ -25,7 +26,7 @@ func executeRequestHandler(runtime *FlowRuntime, handler func(*runtimepkg.Respon
 		flowName := c.Param(FlowNameParamName)
 		body, err := ioutil.ReadAll(c.Request.Body)
 		if err != nil {
-			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
+			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, %v", err))
 			return
 		}
 
@@ -51,7 +52,7 @@ func executeRequestHandler(runtime *FlowRuntime, handler func(*runtimepkg.Respon
 
 		ex, err := runtime.CreateExecutor(request)
 		if err != nil {
-			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
+			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, %v", err))
 			return
 		}
 

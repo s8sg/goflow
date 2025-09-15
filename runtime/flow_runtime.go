@@ -168,7 +168,7 @@ func (fRuntime *FlowRuntime) Register(flows map[string]FlowDefinitionHandler) er
 	if fRuntime.workerMode {
 		err := fRuntime.initializeTaskQueues(&fRuntime.rmqConnection, flows)
 		if err != nil {
-			return fmt.Errorf(fmt.Sprintf("failed to initialize task queues for flows %v, error %v", flowNames, err))
+			return fmt.Errorf("failed to initialize task queues for flows %v, error %v", flowNames, err)
 		}
 	}
 
@@ -191,7 +191,7 @@ func (fRuntime *FlowRuntime) EnterWorkerMode() error {
 
 	err := fRuntime.initializeTaskQueues(&fRuntime.rmqConnection, fRuntime.Flows)
 	if err != nil {
-		return fmt.Errorf("failed to enter worker mode, error: " + err.Error())
+		return fmt.Errorf("failed to enter worker mode, error: %v", err)
 	}
 
 	return nil
@@ -211,7 +211,7 @@ func (fRuntime *FlowRuntime) ExitWorkerMode() error {
 
 	err := fRuntime.cleanTaskQueues()
 	if err != nil {
-		return fmt.Errorf("failed to exit worker mode, error: " + err.Error())
+		return fmt.Errorf("failed to exit worker mode, error: %v", err)
 	}
 
 	return nil
@@ -471,7 +471,7 @@ func (fRuntime *FlowRuntime) handleRequest(request *runtime.Request, requestType
 func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
 	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
-		return fmt.Errorf("failed to execute request " + request.RequestID + ", error: " + err.Error())
+		return fmt.Errorf("failed to execute request %s, error: %v", request.RequestID, err)
 	}
 
 	response := &runtime.Response{}
@@ -480,7 +480,7 @@ func (fRuntime *FlowRuntime) handleNewRequest(request *runtime.Request) error {
 
 	err = controller.ExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
-		return fmt.Errorf("request failed to be processed. error: " + err.Error())
+		return fmt.Errorf("request failed to be processed. error: %v", err)
 	}
 
 	return nil
@@ -490,7 +490,7 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 	flowExecutor, err := fRuntime.CreateExecutor(request)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to execute request, error: %v", request.RequestID, err))
-		return fmt.Errorf("[goflow] failed to execute request " + request.RequestID + ", error: " + err.Error())
+		return fmt.Errorf("[goflow] failed to execute request %s, error: %v", request.RequestID, err)
 	}
 	response := &runtime.Response{}
 	response.RequestID = request.RequestID
@@ -499,7 +499,7 @@ func (fRuntime *FlowRuntime) handlePartialRequest(request *runtime.Request) erro
 	err = controller.PartialExecuteFlowHandler(response, request, flowExecutor)
 	if err != nil {
 		fRuntime.Logger.Log(fmt.Sprintf("[request `%s`] failed to be processed. error: %v", request.RequestID, err.Error()))
-		return fmt.Errorf("[goflow] request failed to be processed. error: " + err.Error())
+		return fmt.Errorf("[goflow] request failed to be processed. error: %v", err)
 	}
 	return nil
 }
