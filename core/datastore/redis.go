@@ -8,29 +8,56 @@ import (
 	"github.com/s8sg/goflow/core/sdk"
 )
 
-type ClientFactory func(redisUri, password string) StorageClient
+type ClientFactory func(redisUri, password string) DataStorageClient
 
 type redisStorageClient struct {
 	client *redis.Client
 }
 
-func (ds *redisStorageClient) Ping(ctx context.Context) *redis.StatusCmd {
-	return ds.client.Ping(ctx)
-}
-func (ds *redisStorageClient) Scan(ctx context.Context, cursor uint64, match string, count int64) *redis.ScanCmd {
-	return ds.client.Scan(ctx, cursor, match, count)
-}
-func (ds *redisStorageClient) Set(ctx context.Context, key string, value interface{}, expirationSeconds int) *redis.StatusCmd {
-	return ds.client.Set(ctx, key, value, 0)
-}
-func (ds *redisStorageClient) Get(ctx context.Context, key string) *redis.StringCmd {
-	return ds.client.Get(ctx, key)
-}
-func (ds *redisStorageClient) Delete(ctx context.Context, keys ...string) *redis.IntCmd {
-	return ds.client.Del(ctx, keys...)
+// redisScanIterator implements ScanIterator for Redis
+type redisScanIterator struct {
+	iter *redis.ScanIterator
 }
 
-var defaultStorageClientFactory ClientFactory = func(redisUri, password string) StorageClient {
+func (r *redisScanIterator) Next(ctx context.Context) bool {
+	return r.iter.Next(ctx)
+}
+
+func (r *redisScanIterator) Val() string {
+	return r.iter.Val()
+}
+
+func (r *redisScanIterator) Err() error {
+	return r.iter.Err()
+}
+
+// Ping tests the connection to Redis
+func (ds *redisStorageClient) Ping(ctx context.Context) error {
+	return ds.client.Ping(ctx).Err()
+}
+
+// Scan searches for keys matching a pattern
+func (ds *redisStorageClient) Scan(ctx context.Context, cursor uint64, match string, count int64) ScanIterator {
+	iter := ds.client.Scan(ctx, cursor, match, count).Iterator()
+	return &redisScanIterator{iter: iter}
+}
+
+// Set stores a value with the given key
+func (ds *redisStorageClient) Set(ctx context.Context, key string, value interface{}, expirationSeconds int) error {
+	return ds.client.Set(ctx, key, value, 0).Err()
+}
+
+// Get retrieves a value by key
+func (ds *redisStorageClient) Get(ctx context.Context, key string) (string, error) {
+	return ds.client.Get(ctx, key).Result()
+}
+
+// Delete removes one or more keys
+func (ds *redisStorageClient) Delete(ctx context.Context, keys ...string) (int64, error) {
+	return ds.client.Del(ctx, keys...).Result()
+}
+
+var defaultStorageClientFactory ClientFactory = func(redisUri, password string) DataStorageClient {
 	return &redisStorageClient{client: redis.NewClient(&redis.Options{
 		Addr:     redisUri,
 		Password: password,
@@ -48,7 +75,7 @@ func GetDatastore(redisUri string, password string, storageFactory ...ClientFact
 	}
 	client := clientStorageFactory(redisUri, password)
 	ctx := context.Background()
-	err := client.Ping(ctx).Err()
+	err := client.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +101,7 @@ func (ds *DataStore) Set(key string, value []byte) error {
 	}
 	fullPath := getPath(ds.bucketName, key)
 	ctx := context.Background()
-	_, err := ds.client.Set(ctx, fullPath, string(value), 0).Result()
+	err := ds.client.Set(ctx, fullPath, string(value), 0)
 	if err != nil {
 		return fmt.Errorf("error writing: %s, error: %s", fullPath, err.Error())
 	}
@@ -87,7 +114,7 @@ func (ds *DataStore) Get(key string) ([]byte, error) {
 
 	fullPath := getPath(ds.bucketName, key)
 	ctx := context.Background()
-	value, err := ds.client.Get(ctx, fullPath).Result()
+	value, err := ds.client.Get(ctx, fullPath)
 	if err == redis.Nil {
 		return nil, fmt.Errorf("error reading: %v, data is nil", fullPath)
 	}
@@ -103,7 +130,7 @@ func (ds *DataStore) Del(key string) error {
 
 	fullPath := getPath(ds.bucketName, key)
 	ctx := context.Background()
-	_, err := ds.client.Delete(ctx, fullPath).Result()
+	_, err := ds.client.Delete(ctx, fullPath)
 	if err != nil {
 		return fmt.Errorf("error removing: %s, error: %s", fullPath, err.Error())
 	}
@@ -117,9 +144,9 @@ func (ds *DataStore) Cleanup() error {
 	var rerr error
 	ctx := context.Background()
 
-	iter := ds.client.Scan(ctx, 0, key, 0).Iterator()
+	iter := ds.client.Scan(ctx, 0, key, 0)
 	for iter.Next(ctx) {
-		err := ds.client.Delete(ctx, iter.Val()).Err()
+		_, err := ds.client.Delete(ctx, iter.Val())
 		if err != nil {
 			rerr = err
 		}

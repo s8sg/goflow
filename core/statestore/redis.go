@@ -50,7 +50,7 @@ func (s *StateStore) CopyStore() (sdk.StateStore, error) {
 // Redis backend implements StateBackend
 type RedisBackend struct {
 	KeyPath string
-	rds     redis.UniversalClient
+	rds     RedisClient
 }
 
 func NewRedisBackend(redisUri, password string) (*RedisBackend, error) {
