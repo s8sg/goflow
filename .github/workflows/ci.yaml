@@ -1,21 +1,40 @@
 name: GO-Flow-Build
-
 on: [push]
-
 jobs:
-
   checks:
-    name: Unit test
+    name: Go Flow Build and Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: actions/setup-go@v1
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
-      - run: make
-      - uses: actions/upload-artifact@v1
+          go-version: '1.24.7'
+      - name: Vet
+        run: go vet ./...
+      - name: Lint
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          golangci-lint run ./...
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+      - name: Build
+        run: go build ./...
+      - name: Run tests with coverage
+        run: go test -v -coverprofile=coverage.out ./...
+      - name: Generate coverage HTML
+        run: go tool cover -html=coverage.out -o coverage.html
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below the required 80% threshold"
+          else
+            echo "Coverage ${COVERAGE}% meets the required 80% threshold"
+          fi
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage.html
-          path: /tmp/coverage.html
+          path: coverage.html

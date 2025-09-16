@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/s8sg/goflow/samples/condition"
 	"github.com/s8sg/goflow/samples/loop"
 	"github.com/s8sg/goflow/samples/myflow"
@@ -22,11 +23,23 @@ func main() {
 		EnableMonitoring:  true,
 		DebugEnabled:      true,
 	}
-	fs.Register("single", single.DefineWorkflow)
-	fs.Register("serial", serial.DefineWorkflow)
-	fs.Register("parallel", parallel.DefineWorkflow)
-	fs.Register("condition", condition.DefineWorkflow)
-	fs.Register("loop", loop.DefineWorkflow)
-	fs.Register("myflow", myflow.DefineWorkflow)
+	if err := fs.Register("single", single.DefineWorkflow); err != nil {
+		fmt.Println("Error registering single workflow:", err)
+	}
+	if err := fs.Register("serial", serial.DefineWorkflow); err != nil {
+		fmt.Println("Error registering serial workflow:", err)
+	}
+	if err := fs.Register("parallel", parallel.DefineWorkflow); err != nil {
+		fmt.Println("Error registering parallel workflow:", err)
+	}
+	if err := fs.Register("condition", condition.DefineWorkflow); err != nil {
+		fmt.Println("Error registering condition workflow:", err)
+	}
+	if err := fs.Register("loop", loop.DefineWorkflow); err != nil {
+		fmt.Println("Error registering loop workflow:", err)
+	}
+	if err := fs.Register("myflow", myflow.DefineWorkflow); err != nil {
+		fmt.Println("Error registering myflow workflow:", err)
+	}
 	fmt.Println(fs.Start())
 }

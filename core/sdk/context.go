@@ -60,7 +60,7 @@ func (context *Context) Set(key string, data interface{}) error {
 	}{Key: key, Value: data}
 	b, err := json.Marshal(&c)
 	if err != nil {
-		return fmt.Errorf("Failed to marshal data, error %v", err)
+		return fmt.Errorf("failed to marshal data, error %v", err)
 	}
 
 	return context.dataStore.Set(key, b)
@@ -78,7 +78,7 @@ func (context *Context) Get(key string) (interface{}, error) {
 	}{}
 	err = json.Unmarshal(data, &c)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal data, error %v", err)
+		return nil, fmt.Errorf("failed to unmarshal data, error %v", err)
 	}
 	return c.Value, err
 }

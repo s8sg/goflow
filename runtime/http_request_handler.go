@@ -2,12 +2,13 @@ package runtime
 
 import (
 	"fmt"
-	"github.com/rs/xid"
-	runtimeCommon "github.com/s8sg/goflow/runtime/common"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/rs/xid"
+	runtimeCommon "github.com/s8sg/goflow/runtime/common"
 
 	runtimepkg "github.com/s8sg/goflow/core/runtime"
 
@@ -23,9 +24,9 @@ const (
 func executeRequestHandler(runtime *FlowRuntime, handler func(*runtimepkg.Response, *runtimepkg.Request, executor.Executor) error) func(*gin.Context) {
 	fn := func(c *gin.Context) {
 		flowName := c.Param(FlowNameParamName)
-		body, err := ioutil.ReadAll(c.Request.Body)
+		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
-			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
+			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, %v", err))
 			return
 		}
 
@@ -51,13 +52,13 @@ func executeRequestHandler(runtime *FlowRuntime, handler func(*runtimepkg.Respon
 
 		ex, err := runtime.CreateExecutor(request)
 		if err != nil {
-			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, "+err.Error()))
+			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("failed to execute request, %v", err))
 			return
 		}
 
 		asyncRequest := request.GetHeader(AsyncRequestHeader)
 
-		if "TRUE" == strings.ToUpper(asyncRequest) {
+		if strings.ToUpper(asyncRequest) == "TRUE" {
 
 			// For async request we generate a requestID and pass it to the executor
 			if request.RequestID == "" {
@@ -74,7 +75,9 @@ func executeRequestHandler(runtime *FlowRuntime, handler func(*runtimepkg.Respon
 			headers := c.Writer.Header()
 			headers[RequestIdHeaderName] = []string{request.RequestID}
 			c.Writer.WriteHeader(http.StatusOK)
-			c.Writer.Write([]byte("Request queued"))
+			if _, err := c.Writer.Write([]byte("Request queued")); err != nil {
+				log.Printf("Error writing response: %v", err)
+			}
 			return
 		}
 
@@ -91,7 +94,9 @@ func executeRequestHandler(runtime *FlowRuntime, handler func(*runtimepkg.Respon
 		}
 
 		c.Writer.WriteHeader(http.StatusOK)
-		c.Writer.Write(response.Body)
+		if _, err := c.Writer.Write(response.Body); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	}
 
 	return fn
@@ -118,8 +123,10 @@ func stopRequestHandler(runtime *FlowRuntime) func(*gin.Context) {
 			return
 		}
 		c.Writer.WriteHeader(http.StatusOK)
-		c.Writer.Write([]byte("Stop request submitted"))
-		return
+		if _, err := c.Writer.Write([]byte("Stop request submitted")); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
+		// no explicit return needed
 	}
 	return fn
 }
@@ -142,11 +149,13 @@ func pauseRequestHandler(runtime *FlowRuntime) func(*gin.Context) {
 		if err != nil {
 			log.Printf("Failed to submit pause request for requestId %s, error %v", requestId, err)
 			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("Failed to submit pause requests, %v", err))
-			return
+			// ...existing code...
 		}
 		c.Writer.WriteHeader(http.StatusOK)
-		c.Writer.Write([]byte("Pause request submitted"))
-		return
+		if _, err := c.Writer.Write([]byte("Pause request submitted")); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
+		// no explicit return needed
 	}
 	return fn
 }
@@ -169,11 +178,13 @@ func resumeRequestHandler(runtime *FlowRuntime) func(*gin.Context) {
 		if err != nil {
 			log.Printf("Failed to submit resume request for requestId %s, error %v", requestId, err)
 			runtimeCommon.HandleError(c.Writer, fmt.Sprintf("Failed to submit resume requests, %v", err))
-			return
+			// ...existing code...
 		}
 		c.Writer.WriteHeader(http.StatusOK)
-		c.Writer.Write([]byte("Resume request submitted"))
-		return
+		if _, err := c.Writer.Write([]byte("Resume request submitted")); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
+		// no explicit return needed
 	}
 	return fn
 }
@@ -184,8 +195,10 @@ func requestStateHandler(runtime *FlowRuntime) func(*gin.Context) {
 		// requestId := c.Param(RequestIdParamName)
 		// TODO: implement
 		c.Writer.WriteHeader(http.StatusInternalServerError)
-		c.Writer.Write([]byte("Not Implemented"))
-		return
+		if _, err := c.Writer.Write([]byte("Not Implemented")); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
+		// no explicit return needed
 	}
 	return fn
 }
@@ -196,8 +209,10 @@ func requestListHandler(runtime *FlowRuntime) func(*gin.Context) {
 		// requestId := c.Param(RequestIdParamName)
 		// TODO: implement
 		c.Writer.WriteHeader(http.StatusInternalServerError)
-		c.Writer.Write([]byte("Not Implemented"))
-		return
+		if _, err := c.Writer.Write([]byte("Not Implemented")); err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
+		// no explicit return needed
 	}
 	return fn
 }

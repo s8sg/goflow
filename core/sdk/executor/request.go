@@ -6,17 +6,17 @@ import (
 
 // Request defines the body of async forward request to core
 type Request struct {
-	Sign        string `json: "sign"`         // request signature
-	ID          string `json: "id"`           // request ID
-	Query       string `json: "query"`        // query string
-	CallbackUrl string `json: "callback-url"` // callback url
+	Sign        string `json:"sign"`         // request signature
+	ID          string `json:"id"`           // request ID
+	Query       string `json:"query"`        // query string
+	CallbackUrl string `json:"callback-url"` // callback url
 
-	ExecutionState string `json: "state"` // Execution State (execution position / execution vertex)
+	ExecutionState string `json:"state"` // Execution State (execution position / execution vertex)
 
-	Data []byte `json: "data"` // Partial execution data
+	Data []byte `json:"data"` // Partial execution data
 	// (empty if intermediate_storage enabled
 
-	ContextStore map[string][]byte `json: "store"` // Context State for default DataStore
+	ContextStore map[string][]byte `json:"store"` // Context State for default DataStore
 	// (empty if external Store is used)
 }
 
@@ -65,8 +65,4 @@ func (req *Request) getExecutionState() string {
 
 func (req *Request) getContextStore() map[string][]byte {
 	return req.ContextStore
-}
-
-func (req *Request) getQuery() string {
-	return req.Query
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"strconv"
 
 	hmac "github.com/alexellis/hmac"
 	xid "github.com/rs/xid"
@@ -138,8 +137,6 @@ func PartialRequest(partialState *PartialState) ExecutionStateOption {
 }
 
 const (
-	// signature of SHA265 equivalent of "github.com/s8sg/faas-flow"
-	defaultHmacKey = "71F1D3011F8E6160813B4997BA29856744375A7F26D427D491E1CCABD4627E7C"
 	// max retry count to update counter
 	counterUpdateRetryCount = 10
 )
@@ -147,8 +144,8 @@ const (
 // log logs using logger if logging enabled
 func (fexec *FlowExecutor) log(str string, a ...interface{}) {
 	if fexec.executor.LoggingEnabled() {
-		str := fmt.Sprintf(str, a...)
-		fexec.logger.Log(str)
+		logStr := fmt.Sprintf(str, a...)
+		fexec.logger.Log(logStr)
 	}
 }
 
@@ -200,17 +197,6 @@ func (fexec *FlowExecutor) incrementCounter(counter string, incrementBy int) (in
 }
 
 // retrieveCounter retrieves a counter value
-func (fexec *FlowExecutor) retrieveCounter(counter string) (int, error) {
-	encoded, err := fexec.stateStore.Get(counter)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get counter %s, error %v", counter, err)
-	}
-	current, err := strconv.Atoi(encoded)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get counter %s, error %v", counter, err)
-	}
-	return current, nil
-}
 
 func (fexec *FlowExecutor) storePartialState(partialState *PartialState) error {
 
@@ -346,9 +332,13 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 				// Perform Graceful stop
 				// Cleanup data and state for failure
 				if fexec.stateStore != nil {
-					fexec.stateStore.Cleanup()
+					if err := fexec.stateStore.Cleanup(); err != nil {
+						fexec.log("Error cleaning up stateStore: %v\n", err)
+					}
 				}
-				fexec.dataStore.Cleanup()
+				if err := fexec.dataStore.Cleanup(); err != nil {
+					fexec.log("Error cleaning up dataStore: %v\n", err)
+				}
 
 				if fexec.notifyChan != nil {
 					fexec.notifyChan <- fexec.id
@@ -389,12 +379,13 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 
 // findCurrentNodeToExecute find right node to execute based on state
 func (fexec *FlowExecutor) findCurrentNodeToExecute() {
-	currentNode, currentDag := fexec.flow.GetCurrentNodeDag()
+	var currentDag *sdk.Dag = nil
+	currentNode, _ := fexec.flow.GetCurrentNodeDag()
 
 	fexec.log("[request `%s`] executing node %s\n", fexec.id, currentNode.GetUniqueId())
 
 	// recurse to the subdag - if a node is dynamic stop to evaluate it
-	for true {
+	for {
 		// break if request is dynamic
 		if currentNode.Dynamic() {
 			return
@@ -622,9 +613,13 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 			// Perform Graceful stop
 			// Cleanup data and state for failure
 			if fexec.stateStore != nil {
-				fexec.stateStore.Cleanup()
+				if err := fexec.stateStore.Cleanup(); err != nil {
+					fexec.log("Error cleaning up stateStore: %v\n", err)
+				}
 			}
-			fexec.dataStore.Cleanup()
+			if err := fexec.dataStore.Cleanup(); err != nil {
+				fexec.log("Error cleaning up dataStore: %v\n", err)
+			}
 
 			if fexec.notifyChan != nil {
 				fexec.notifyChan <- fexec.id
@@ -637,7 +632,7 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 	currentNode, currentDag := pipeline.GetCurrentNodeDag()
 	// Check if the pipeline has completed execution return
 	// else change depth and continue executing
-	for true {
+	for {
 		if fexec.executor.MonitoringEnabled() {
 			defer fexec.eventHandler.ReportNodeEnd(currentNode.GetUniqueId(), fexec.id)
 		}
@@ -692,7 +687,7 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 	if len(options) > 1 {
 
 		// Get unique execution id of the node
-		key = "-branch-completion" + pipeline.GetNodeExecutionUniqueId(currentNode)
+		// key assignment removed; was ineffectual
 		// Update the state of in-degree completion and get the updated state
 
 		// Skip if dynamic node data forwarding is not disabled
@@ -743,7 +738,9 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 
 		// skip retrieving data for current option
 		if option == currentOption {
-			context.Del(key)
+			if err := context.Del(key); err != nil {
+				fexec.log("Error deleting key from context: %v\n", err)
+			}
 			continue
 		}
 
@@ -751,7 +748,9 @@ func (fexec *FlowExecutor) handleDynamicEnd(context *sdk.Context, result []byte)
 		fexec.log("[request `%s`] intermediate result from branch to dynamic node %s for option %s retrieved from %s\n",
 			fexec.id, currentNode.GetUniqueId(), option, key)
 		// delete Intermediate data after retrieval
-		context.Del(key)
+		if err := context.Del(key); err != nil {
+			fexec.log("Error deleting key from context: %v\n", err)
+		}
 
 		subDataMap[option] = idata
 	}
@@ -887,16 +886,20 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 
 	// Cleanup data and state for failure
 	if fexec.stateStore != nil {
-		fexec.stateStore.Cleanup()
+		if err := fexec.stateStore.Cleanup(); err != nil {
+			fexec.log("Error cleaning up stateStore: %v\n", err)
+		}
 	}
-	fexec.dataStore.Cleanup()
+	if err := fexec.dataStore.Cleanup(); err != nil {
+		fexec.log("Error cleaning up dataStore: %v\n", err)
+	}
 
 	if fexec.executor.MonitoringEnabled() {
 		fexec.eventHandler.ReportRequestFailure(fexec.id, err)
 		fexec.eventHandler.Flush()
 	}
 
-	fmt.Sprintf("[request `%s`] Failed, %v\n", fexec.id, err)
+	fexec.log("[request `%s`] Failed, %v\n", fexec.id, err)
 }
 
 // getDagIntermediateData gets the intermediate data from earlier vertex
@@ -929,7 +932,9 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 				fexec.id, dagNode.GetUniqueId(), currentNode.GetUniqueId(),
 				option, key)
 			// delete intermediate data after retrieval
-			context.Del(key)
+			if err := context.Del(key); err != nil {
+				fexec.log("Error deleting key from context: %v\n", err)
+			}
 		}
 
 	// handle normal scenario
@@ -948,7 +953,9 @@ func (fexec *FlowExecutor) getDagIntermediateData(context *sdk.Context) ([]byte,
 			fexec.log("[request `%s`] intermediate result from Node %s to Node %s retrieved from %s\n",
 				fexec.id, node.GetUniqueId(), currentNode.GetUniqueId(), key)
 			// delete intermediate data after retrieval
-			context.Del(key)
+			if err := context.Del(key); err != nil {
+				fexec.log("Error deleting key from context: %v\n", err)
+			}
 
 			dataMap[node.Id] = idata
 
@@ -1348,9 +1355,13 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 
 		// Cleanup data and state for failure
 		if fexec.stateStore != nil {
-			fexec.stateStore.Cleanup()
+			if err := fexec.stateStore.Cleanup(); err != nil {
+				fexec.log("Error cleaning up stateStore: %v\n", err)
+			}
 		}
-		fexec.dataStore.Cleanup()
+		if err := fexec.dataStore.Cleanup(); err != nil {
+			fexec.log("Error cleaning up dataStore: %v\n", err)
+		}
 
 		// Call execution completion handler
 		fexec.log("[request `%s`] calling completion handler\n", fexec.id)

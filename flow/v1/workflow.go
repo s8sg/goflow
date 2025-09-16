@@ -2,6 +2,7 @@ package v1
 
 import (
 	"fmt"
+
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/operation"
 )
@@ -159,7 +160,7 @@ func (currentDag *Dag) Edge(from, to string, opts ...Option) {
 	for _, opt := range opts {
 		o.reset()
 		opt(o)
-		if o.noForwarder == true {
+		if o.noForwarder {
 			fromNode := currentDag.udag.GetNode(from)
 			// Add a nil forwarder overriding the default forwarder
 			fromNode.AddForwarder(to, nil)
@@ -180,7 +181,7 @@ func (currentDag *Dag) SubDag(vertex string, dag *Dag) {
 	if err != nil {
 		panic(fmt.Sprintf("Error at AddSubDag for %s, %v", vertex, err))
 	}
-	return
+	// no explicit return needed
 }
 
 // ForEachBranch composites a sub-dag which executes for each value
@@ -200,7 +201,7 @@ func (currentDag *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
 		}
-		if o.noForwarder == true {
+		if o.noForwarder {
 			node.AddForwarder("dynamic", nil)
 		}
 	}
@@ -210,7 +211,7 @@ func (currentDag *Dag) ForEachBranch(vertex string, foreach sdk.ForEach, options
 	if err != nil {
 		panic(fmt.Sprintf("Error at AddForEachBranch for %s, %v", vertex, err))
 	}
-	return
+	return dag
 }
 
 // ConditionalBranch composites multiple dags as a sub-dag which executes for each
@@ -232,7 +233,7 @@ func (currentDag *Dag) ConditionalBranch(vertex string, conditions []string, con
 		if o.aggregator != nil {
 			node.AddSubAggregator(o.aggregator)
 		}
-		if o.noForwarder == true {
+		if o.noForwarder {
 			node.AddForwarder("dynamic", nil)
 		}
 	}
@@ -242,7 +243,7 @@ func (currentDag *Dag) ConditionalBranch(vertex string, conditions []string, con
 		node.AddConditionalDag(conditionKey, dag.udag)
 		conditionDags[conditionKey] = dag
 	}
-	return
+	return conditionDags
 }
 
 func (currentDag *Dag) Validate() error {

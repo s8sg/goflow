@@ -2,9 +2,10 @@ package eventhandler
 
 import (
 	"fmt"
-	"github.com/s8sg/goflow/core/runtime"
 	"net/http"
 	"sync"
+
+	"github.com/s8sg/goflow/core/runtime"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -173,5 +174,5 @@ func (tracerObj *TraceHandler) StopOperationSpan(node string, operationID string
 
 // FlushTracer flush all pending traces
 func (tracerObj *TraceHandler) FlushTracer() {
-	tracerObj.closer.Close()
+	_ = tracerObj.closer.Close()
 }

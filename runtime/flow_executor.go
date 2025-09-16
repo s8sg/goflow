@@ -3,14 +3,15 @@ package runtime
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
+
 	"github.com/s8sg/goflow/core/runtime"
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/core/sdk/executor"
 	"github.com/s8sg/goflow/eventhandler"
-	"github.com/s8sg/goflow/flow/v1"
-	"io/ioutil"
-	"log"
-	"net/http"
+	v1 "github.com/s8sg/goflow/flow/v1"
 )
 
 type FlowExecutor struct {
@@ -22,8 +23,6 @@ type FlowExecutor struct {
 	RequestAuthEnabled      bool
 	EnableMonitoring        bool
 	IsLoggingEnabled        bool
-	partialState            []byte
-	rawRequest              *executor.RawRequest
 	StateStore              sdk.StateStore
 	DataStore               sdk.DataStore
 	EventHandler            sdk.EventHandler
@@ -44,11 +43,7 @@ func (fe *FlowExecutor) HandleNextNode(partial *executor.PartialState) error {
 	request.RequestID = fe.reqID
 	request.FlowName = fe.flowName
 	request.Header = make(map[string][]string)
-	if fe.MonitoringEnabled() {
-		// TODO: Fix issue
-		//faasHandler := fe.EventHandler.(*eventhandler.GoFlowEventHandler)
-		//faasHandler.Tracer.ExtendReqSpan(fe.reqID, faasHandler.CurrentNodeID, "", request)
-	}
+	// Monitoring logic can be added here if needed
 	err = fe.Runtime.EnqueuePartialRequest(request)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue request, error %v", err)
@@ -78,8 +73,12 @@ func (fe *FlowExecutor) HandleExecutionCompletion(data []byte) error {
 	if resErr != nil {
 		return resErr
 	}
-	defer res.Body.Close()
-	resData, _ := ioutil.ReadAll(res.Body)
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			log.Printf("Error closing response body: %v", err)
+		}
+	}()
+	resData, _ := io.ReadAll(res.Body)
 
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("failed to call callback %d: %s", res.StatusCode, string(resData))
