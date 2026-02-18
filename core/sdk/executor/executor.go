@@ -1015,11 +1015,11 @@ func (fexec *FlowExecutor) initializeStore() (stateSDefined bool, dataSOverride 
 		return
 	}
 	if dataS != nil {
-		dataSotore, err := dataS.CopyStore()
+		dataStore, err := dataS.CopyStore()
 		if err != nil {
 			return stateSDefined, dataSOverride, fmt.Errorf("failed to copy data store: %w", err)
 		}
-		fexec.dataStore = dataSotore
+		fexec.dataStore = dataStore
 		dataSOverride = true
 		fexec.dataStore.Configure(fexec.flowName, fexec.id)
 		// If request is not partial initialize the dataStore
