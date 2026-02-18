@@ -869,12 +869,20 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 	var data []byte
 
+	// Preserve the original error for monitoring and logging
+	originalErr := err
+
 	context.State = sdk.StateFailure
 	// call failure handler if available
 	if fexec.flow.FailureHandler != nil {
 		fexec.log("[request `%s`] calling failure handler for error, %v\n",
-			fexec.id, err)
-		data, err = fexec.flow.FailureHandler(err)
+			fexec.id, originalErr)
+		var handlerErr error
+		data, handlerErr = fexec.flow.FailureHandler(originalErr)
+		if handlerErr != nil {
+			fexec.log("[request `%s`] failure handler returned error: %v\n",
+				fexec.id, handlerErr)
+		}
 	}
 
 	fexec.finished = true
@@ -898,11 +906,11 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 	}
 
 	if fexec.executor.MonitoringEnabled() {
-		fexec.eventHandler.ReportRequestFailure(fexec.id, err)
+		fexec.eventHandler.ReportRequestFailure(fexec.id, originalErr)
 		fexec.eventHandler.Flush()
 	}
 
-	fexec.log("[request `%s`] Failed, %v\n", fexec.id, err)
+	fexec.log("[request `%s`] Failed, %v\n", fexec.id, originalErr)
 }
 
 // getDagIntermediateData gets the intermediate data from earlier vertex
