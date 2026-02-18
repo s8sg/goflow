@@ -168,7 +168,7 @@ func (fRuntime *FlowRuntime) Register(flows map[string]FlowDefinitionHandler) er
 	if fRuntime.workerMode {
 		err := fRuntime.initializeTaskQueues(&fRuntime.rmqConnection, flows)
 		if err != nil {
-			return fmt.Errorf(fmt.Sprintf("failed to initialize task queues for flows %v, error %v", flowNames, err))
+			return fmt.Errorf("failed to initialize task queues for flows %v, error %v", flowNames, err)
 		}
 	}
 
@@ -639,14 +639,18 @@ func (fRuntime *FlowRuntime) saveWorkerDetails(worker *Worker) error {
 	rdb := fRuntime.rdb
 	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
 	value := marshalWorker(worker)
-	rdb.Set(key, value, time.Second*RDBKeyTimeOut)
+	if err := rdb.Set(key, value, time.Second*RDBKeyTimeOut).Err(); err != nil {
+		return fmt.Errorf("failed to save worker details: %w", err)
+	}
 	return nil
 }
 
 func (fRuntime *FlowRuntime) deleteWorkerDetails(worker *Worker) error {
 	rdb := fRuntime.rdb
 	key := fmt.Sprintf("%s:%s", WorkerKeyInitial, worker.ID)
-	rdb.Del(key)
+	if err := rdb.Del(key).Err(); err != nil {
+		return fmt.Errorf("failed to delete worker details: %w", err)
+	}
 	return nil
 }
 
@@ -654,7 +658,9 @@ func (fRuntime *FlowRuntime) saveFlowDetails(flows map[string]string) error {
 	rdb := fRuntime.rdb
 	for flowId, definition := range flows {
 		key := fmt.Sprintf("%s:%s", FlowKeyInitial, flowId)
-		rdb.Set(key, definition, time.Second*RDBKeyTimeOut)
+		if err := rdb.Set(key, definition, time.Second*RDBKeyTimeOut).Err(); err != nil {
+			return fmt.Errorf("failed to save flow %s: %w", flowId, err)
+		}
 	}
 	return nil
 }

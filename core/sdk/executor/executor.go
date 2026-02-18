@@ -348,7 +348,9 @@ func (fexec *FlowExecutor) executeNode(request []byte) ([]byte, error) {
 				if fexec.stateStore != nil {
 					fexec.stateStore.Cleanup()
 				}
-				fexec.dataStore.Cleanup()
+				if fexec.dataStore != nil {
+					fexec.dataStore.Cleanup()
+				}
 
 				if fexec.notifyChan != nil {
 					fexec.notifyChan <- fexec.id
@@ -624,7 +626,9 @@ func (fexec *FlowExecutor) findNextNodeToExecute() bool {
 			if fexec.stateStore != nil {
 				fexec.stateStore.Cleanup()
 			}
-			fexec.dataStore.Cleanup()
+			if fexec.dataStore != nil {
+				fexec.dataStore.Cleanup()
+			}
 
 			if fexec.notifyChan != nil {
 				fexec.notifyChan <- fexec.id
@@ -865,12 +869,20 @@ func (fexec *FlowExecutor) handleNextNodes(context *sdk.Context, result []byte) 
 func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 	var data []byte
 
+	// Preserve the original error for monitoring and logging
+	originalErr := err
+
 	context.State = sdk.StateFailure
 	// call failure handler if available
 	if fexec.flow.FailureHandler != nil {
 		fexec.log("[request `%s`] calling failure handler for error, %v\n",
-			fexec.id, err)
-		data, err = fexec.flow.FailureHandler(err)
+			fexec.id, originalErr)
+		var handlerErr error
+		data, handlerErr = fexec.flow.FailureHandler(originalErr)
+		if handlerErr != nil {
+			fexec.log("[request `%s`] failure handler returned error: %v\n",
+				fexec.id, handlerErr)
+		}
 	}
 
 	fexec.finished = true
@@ -889,14 +901,16 @@ func (fexec *FlowExecutor) handleFailure(context *sdk.Context, err error) {
 	if fexec.stateStore != nil {
 		fexec.stateStore.Cleanup()
 	}
-	fexec.dataStore.Cleanup()
+	if fexec.dataStore != nil {
+		fexec.dataStore.Cleanup()
+	}
 
 	if fexec.executor.MonitoringEnabled() {
-		fexec.eventHandler.ReportRequestFailure(fexec.id, err)
+		fexec.eventHandler.ReportRequestFailure(fexec.id, originalErr)
 		fexec.eventHandler.Flush()
 	}
 
-	fmt.Sprintf("[request `%s`] Failed, %v\n", fexec.id, err)
+	fexec.log("[request `%s`] Failed, %v\n", fexec.id, originalErr)
 }
 
 // getDagIntermediateData gets the intermediate data from earlier vertex
@@ -1009,8 +1023,11 @@ func (fexec *FlowExecutor) initializeStore() (stateSDefined bool, dataSOverride 
 		return
 	}
 	if dataS != nil {
-		dataSotore, _ := dataS.CopyStore()
-		fexec.dataStore = dataSotore
+		dataStore, err := dataS.CopyStore()
+		if err != nil {
+			return stateSDefined, dataSOverride, fmt.Errorf("failed to copy data store: %w", err)
+		}
+		fexec.dataStore = dataStore
 		dataSOverride = true
 		fexec.dataStore.Configure(fexec.flowName, fexec.id)
 		// If request is not partial initialize the dataStore
@@ -1350,7 +1367,9 @@ func (fexec *FlowExecutor) Execute(state ExecutionStateOption) ([]byte, error) {
 		if fexec.stateStore != nil {
 			fexec.stateStore.Cleanup()
 		}
-		fexec.dataStore.Cleanup()
+		if fexec.dataStore != nil {
+			fexec.dataStore.Cleanup()
+		}
 
 		// Call execution completion handler
 		fexec.log("[request `%s`] calling completion handler\n", fexec.id)
